@@ -13,7 +13,7 @@ import pywt
 try:
     from .detector_factory import BaseDetector
     from ..core.data_structures import Detection
-except:
+except ImportError:
     from detector_factory import BaseDetector
     from core.data_structures import Detection
 

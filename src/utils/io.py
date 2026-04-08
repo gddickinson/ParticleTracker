@@ -9,7 +9,7 @@ import tifffile
 
 try:
     from ..core.data_structures import ImageStack, TrackingResult
-except:
+except ImportError:
     from core.data_structures import ImageStack, TrackingResult
 
 

@@ -34,7 +34,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 try:
     from ..core.pipeline import ParticleTracker
     from ..core.data_structures import ImageStack, TrackingResult
-except:
+except ImportError:
     from core.pipeline import ParticleTracker
     from core.data_structures import ImageStack, TrackingResult
 

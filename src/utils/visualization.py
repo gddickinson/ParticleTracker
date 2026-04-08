@@ -12,7 +12,7 @@ from pathlib import Path
 
 try:
     from ..core.data_structures import ImageStack, Track, TrackingResult
-except:
+except ImportError:
     from core.data_structures import ImageStack, Track, TrackingResult
 
 

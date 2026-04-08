@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 
 try:
     from ..core.data_structures import Detection
-except:
+except ImportError:
     from core.data_structures import Detection
 
 
@@ -79,11 +79,22 @@ def create_detector(config: Dict) -> BaseDetector:
     """
     Factory function to create detector instance.
 
+    Supported methods:
+        - 'wavelet': Wavelet-transform based detection (default). Best for noisy data.
+        - 'log': Laplacian of Gaussian blob detection. Fast, good for well-separated particles.
+        - 'dog': Difference of Gaussians. Fastest classical method.
+        - 'deep': Deep learning detector (requires torch).
+        - 'gaussian': Direct Gaussian fitting. Most accurate but slowest.
+
     Args:
-        config: Configuration dictionary with 'method' key
+        config: Configuration dictionary. Must contain 'method' key (str).
+            Additional keys depend on the chosen method (see each detector class).
 
     Returns:
-        Detector instance
+        BaseDetector subclass instance configured with the given parameters.
+
+    Raises:
+        ValueError: If the specified method is not recognized.
     """
     method = config.get('method', 'wavelet').lower()
 

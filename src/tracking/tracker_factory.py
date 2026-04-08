@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 
 try:
     from ..core.data_structures import Detection, Track, TrackingResult
-except:
+except ImportError:
     from core.data_structures import Detection, Track, TrackingResult
 
 
@@ -66,11 +66,22 @@ def create_tracker(config: Dict) -> BaseTracker:
     """
     Factory function to create tracker instance.
 
+    Supported methods:
+        - 'lap': Linear Assignment Problem tracker (default). Two-step global
+          optimization approach from U-track. Best for dense particle fields.
+        - 'nearest': Nearest neighbor linking. Fast but less robust.
+        - 'mht': Multiple Hypothesis Tracking (requires mht_tracker module).
+        - 'deep': Deep learning tracker (requires torch).
+
     Args:
-        config: Configuration dictionary with 'method' key
+        config: Configuration dictionary. Must contain 'method' key (str).
+            Additional keys depend on the chosen method (see each tracker class).
 
     Returns:
-        Tracker instance
+        BaseTracker subclass instance configured with the given parameters.
+
+    Raises:
+        ValueError: If the specified method is not recognized.
     """
     method = config.get('method', 'lap').lower()
 

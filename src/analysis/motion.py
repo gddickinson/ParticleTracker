@@ -12,7 +12,7 @@ from scipy.optimize import curve_fit
 
 try:
     from ..core.data_structures import Track
-except:
+except ImportError:
     from core.data_structures import Track
 
 

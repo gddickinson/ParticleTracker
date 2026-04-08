@@ -13,7 +13,7 @@ from scipy.spatial.distance import cdist
 try:
     from .tracker_factory import BaseTracker
     from ..core.data_structures import Detection, Track, TrackingResult
-except:
+except ImportError:
     from tracker_factory import BaseTracker
     from core.data_structures import Detection, Track, TrackingResult
 

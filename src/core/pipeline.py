@@ -15,7 +15,7 @@ try:
         ImageStack, Detection, Track, TrackingResult,
         create_synthetic_data
     )
-except:
+except ImportError:
     from data_structures import (
         ImageStack, Detection, Track, TrackingResult,
         create_synthetic_data

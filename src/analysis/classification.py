@@ -9,7 +9,7 @@ from typing import Dict, List
 
 try:
     from ..core.data_structures import Track
-except:
+except ImportError:
     from core.data_structures import Track
 
 try:
@@ -19,7 +19,7 @@ try:
         calculate_directionality,
         detect_confinement
     )
-except:
+except ImportError:
     from motion import (
         calculate_msd,
         fit_diffusion_model,
