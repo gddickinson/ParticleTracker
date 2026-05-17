@@ -170,3 +170,7 @@ This project builds upon the work of:
 - trackpy (Soft-Matter community)
 - Deep learning tracking methods (Spilger et al., 2021)
 
+
+
+---
+*Built with AI assistance from [Claude (Anthropic)](https://claude.com/).*
