@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "ParticleTracker"
+abstract: "ParticleTracker is a Python framework for particle detection, localization, and tracking in fluorescence microscopy images"
+authors:
+  - family-names: Dickinson
+    given-names: "George D."
+    orcid: https://orcid.org/0000-0001-7711-0388
+    affiliation: University of California, Irvine
+repository-code: "https://github.com/gddickinson/ParticleTracker"
+url: "https://github.com/gddickinson/ParticleTracker"
+license: MIT
+date-released: 2025-12-17
