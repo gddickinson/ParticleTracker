@@ -414,59 +414,10 @@ class TrackingResult:
         return result
 
 
-def create_synthetic_data(n_frames: int = 100, 
-                         n_particles: int = 10,
-                         frame_shape: Tuple[int, int] = (256, 256),
-                         noise_level: float = 10.0,
-                         **kwargs) -> ImageStack:
-    """
-    Generate synthetic particle movie for testing.
-    
-    Args:
-        n_frames: Number of time frames
-        n_particles: Number of particles
-        frame_shape: (height, width) of each frame
-        noise_level: Standard deviation of Gaussian noise
-        **kwargs: Additional parameters (diffusion_coeff, psf_sigma, etc.)
-        
-    Returns:
-        ImageStack with synthetic data
-    """
-    from scipy.ndimage import gaussian_filter
-    
-    # Extract parameters
-    diffusion_coeff = kwargs.get('diffusion_coeff', 1.0)
-    psf_sigma = kwargs.get('psf_sigma', 1.5)
-    intensity = kwargs.get('intensity', 1000.0)
-    
-    # Initialize stack
-    data = np.zeros((n_frames, *frame_shape), dtype=np.float32)
-    
-    # Generate random walk trajectories
-    positions = np.random.rand(n_particles, 2) * np.array(frame_shape)
-    
-    for t in range(n_frames):
-        # Update positions (Brownian motion)
-        positions += np.random.randn(n_particles, 2) * np.sqrt(2 * diffusion_coeff)
-        
-        # Keep particles in frame
-        positions = np.clip(positions, [0, 0], frame_shape)
-        
-        # Render particles as Gaussians
-        for pos in positions:
-            y, x = int(pos[0]), int(pos[1])
-            if 0 <= y < frame_shape[0] and 0 <= x < frame_shape[1]:
-                data[t, y, x] += intensity
-                
-        # Apply Gaussian PSF
-        data[t] = gaussian_filter(data[t], sigma=psf_sigma)
-        
-        # Add noise
-        data[t] += np.random.randn(*frame_shape) * noise_level
-        
-    return ImageStack(
-        data=data,
-        pixel_size=0.1,
-        time_interval=0.1,
-        metadata={'synthetic': True, 'n_particles': n_particles}
-    )
+def create_synthetic_data(*args, **kwargs):
+    """Synthetic particle movie; see core/simulation.py (kept here for existing imports)."""
+    try:
+        from .simulation import create_synthetic_data as _create
+    except ImportError:
+        from core.simulation import create_synthetic_data as _create
+    return _create(*args, **kwargs)
