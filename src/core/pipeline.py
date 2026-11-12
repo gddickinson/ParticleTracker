@@ -16,10 +16,24 @@ try:
         create_synthetic_data
     )
 except ImportError:
-    from data_structures import (
+    from core.data_structures import (
         ImageStack, Detection, Track, TrackingResult,
         create_synthetic_data
     )
+
+def _sibling(name: str):
+    """
+    Import a sibling subpackage module ('detection.detector_factory', ...)
+    whether this package is imported as 'src.core' (tests, examples) or as
+    top-level 'core' (run_gui.py and the 'particletracker' console script put
+    src/ on sys.path). Imported lazily to avoid circular imports.
+    """
+    import importlib
+    try:
+        return importlib.import_module('..' + name, __package__)
+    except (ImportError, TypeError):
+        return importlib.import_module(name)
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -100,7 +114,7 @@ class ParticleTracker:
         logger.info(f"Loading data from {filename}")
 
         # Import here to avoid circular dependencies
-        from ..utils.io import load_image_stack
+        load_image_stack = _sibling('utils.io').load_image_stack
 
         self.image_stack = load_image_stack(filename, **kwargs)
         logger.info(f"Loaded {self.image_stack.n_frames} frames, "
@@ -153,7 +167,7 @@ class ParticleTracker:
         logger.info(f"Running {method} detection...")
 
         # Import detector
-        from ..detection.detector_factory import create_detector
+        create_detector = _sibling('detection.detector_factory').create_detector
 
         # Merge config with provided params
         config = self.config['detection'].copy()
@@ -204,7 +218,7 @@ class ParticleTracker:
         logger.info(f"Running {method} tracking on {len(detections)} detections...")
 
         # Import tracker
-        from ..tracking.tracker_factory import create_tracker
+        create_tracker = _sibling('tracking.tracker_factory').create_tracker
 
         # Merge config with provided params
         config = self.config['tracking'].copy()
@@ -250,7 +264,7 @@ class ParticleTracker:
 
         logger.info(f"Calculating MSD for {len(tracks)} tracks...")
 
-        from ..analysis.motion import calculate_msd
+        calculate_msd = _sibling('analysis.motion').calculate_msd
 
         if max_lag is None:
             max_lag = self.config['analysis']['msd_lag_max']
@@ -277,7 +291,7 @@ class ParticleTracker:
         """
         logger.info(f"Fitting {model} diffusion model...")
 
-        from ..analysis.motion import fit_diffusion_model
+        fit_diffusion_model = _sibling('analysis.motion').fit_diffusion_model
 
         fit_results = fit_diffusion_model(msd_results, model=model)
 
@@ -304,7 +318,7 @@ class ParticleTracker:
 
         logger.info(f"Classifying motion for {len(tracks)} tracks using {method}")
 
-        from ..analysis.classification import classify_track_motion
+        classify_track_motion = _sibling('analysis.classification').classify_track_motion
 
         classifications = {}
         for track in tracks:
@@ -328,7 +342,7 @@ class ParticleTracker:
         """
         logger.info("Generating visualization...")
 
-        from ..utils.visualization import plot_tracks
+        plot_tracks = _sibling('utils.visualization').plot_tracks
 
         plot_tracks(
             image_stack=self.image_stack,
@@ -353,7 +367,7 @@ class ParticleTracker:
 
         logger.info(f"Exporting results to {filename} ({format})")
 
-        from ..utils.io import export_results
+        export_results = _sibling('utils.io').export_results
 
         export_results(
             tracking_result=self.tracking_result,

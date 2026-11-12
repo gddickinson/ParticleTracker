@@ -13,7 +13,7 @@ try:
     from .detector_factory import BaseDetector
     from ..core.data_structures import Detection
 except ImportError:
-    from detector_factory import BaseDetector
+    from detection.detector_factory import BaseDetector
     from core.data_structures import Detection
 
 class WaveletDetector(BaseDetector):

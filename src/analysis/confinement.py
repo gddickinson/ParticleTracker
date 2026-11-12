@@ -23,7 +23,7 @@ import numpy as np
 try:
     from .msd import frame_msd
 except ImportError:
-    from msd import frame_msd
+    from analysis.msd import frame_msd
 
 SAXTON_A, SAXTON_B = 0.2048, 2.5117
 CONFINEMENT_LEVEL_THRESHOLD = 3.16

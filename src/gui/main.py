@@ -349,14 +349,16 @@ class ParticleTrackerGUI(QMainWindow):
         self.image_canvas.draw()
 
     def update_tracks_display(self):
-        """Update tracks visualization."""
-        # Use visualization utilities
-        from ..utils.visualization import plot_tracks
-
+        """Draw the tracks over the maximum-intensity projection."""
         ax = self.tracks_canvas.figure.clear()
         ax = self.tracks_canvas.figure.add_subplot(111)
-
-        # This is a simplified version - full implementation would use plot_tracks
+        if self.tracker.image_stack is not None:
+            ax.imshow(np.max(self.tracker.image_stack.data, axis=0), cmap='gray')
+        if self.tracking_result is not None:
+            for track in self.tracking_result.tracks:
+                pos = track.positions
+                ax.plot(pos[:, 0], pos[:, 1], '-', lw=1)
+            ax.set_title(f'{self.tracking_result.n_tracks} tracks (pixels)')
         self.tracks_canvas.draw()
 
     def update_msd_display(self):

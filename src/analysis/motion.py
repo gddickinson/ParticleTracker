@@ -16,8 +16,8 @@ try:
     from .confinement import confinement_level, CONFINEMENT_LEVEL_THRESHOLD
 except ImportError:
     from core.data_structures import Track
-    from msd import frame_msd
-    from confinement import confinement_level, CONFINEMENT_LEVEL_THRESHOLD
+    from analysis.msd import frame_msd
+    from analysis.confinement import confinement_level, CONFINEMENT_LEVEL_THRESHOLD
 
 
 def calculate_msd(tracks: List[Track],

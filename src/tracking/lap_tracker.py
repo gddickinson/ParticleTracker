@@ -14,7 +14,7 @@ try:
     from .tracker_factory import BaseTracker
     from ..core.data_structures import Detection, Track, TrackingResult
 except ImportError:
-    from tracker_factory import BaseTracker
+    from tracking.tracker_factory import BaseTracker
     from core.data_structures import Detection, Track, TrackingResult
 
 

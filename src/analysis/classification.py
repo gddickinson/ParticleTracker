@@ -20,7 +20,7 @@ try:
         detect_confinement
     )
 except ImportError:
-    from motion import (
+    from analysis.motion import (
         calculate_msd,
         fit_diffusion_model,
         calculate_directionality,
