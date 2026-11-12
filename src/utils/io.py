@@ -5,12 +5,16 @@ Input/Output utilities for loading and saving microscopy data and results.
 import numpy as np
 from pathlib import Path
 from typing import Union, Dict, Optional
+import logging
+
 import tifffile
 
 try:
     from ..core.data_structures import ImageStack, TrackingResult
 except ImportError:
     from core.data_structures import ImageStack, TrackingResult
+
+logger = logging.getLogger(__name__)
 
 
 def load_image_stack(filename: Union[str, Path], **kwargs) -> ImageStack:
@@ -40,25 +44,72 @@ def load_image_stack(filename: Union[str, Path], **kwargs) -> ImageStack:
 
 
 def _load_tiff(filename: Path, **kwargs) -> ImageStack:
-    """Load TIFF stack."""
+    """
+    Load TIFF stack.
+
+    Pixel size (um) and frame interval (s) come from the keyword arguments if
+    given, else from the file (ImageJ resolution + unit + finterval, or OME
+    PhysicalSizeX / TimeIncrement), else the ImageStack defaults (0.1 um,
+    0.1 s). metadata['scale_source'] records which ('argument', 'file' or
+    'default') so results can say where their units came from.
+    """
     data = tifffile.imread(filename)
 
-    # Extract metadata from TIFF tags if available
     metadata = {}
+    file_scale = {}
     try:
         with tifffile.TiffFile(filename) as tif:
             if tif.imagej_metadata:
-                metadata = tif.imagej_metadata
-    except Exception:
-        pass
+                metadata = dict(tif.imagej_metadata)
+            file_scale = _scale_from_tiff(tif)
+    except Exception as e:  # unreadable tags: fall back to defaults, but say so
+        logger.warning(f"Could not read scale from {filename.name}: {e}")
+
+    values, source = {}, {}
+    for key, default in (('pixel_size', 0.1), ('time_interval', 0.1)):
+        if kwargs.get(key) is not None:
+            values[key], source[key] = float(kwargs[key]), 'argument'
+        elif file_scale.get(key):
+            values[key], source[key] = file_scale[key], 'file'
+        else:
+            values[key], source[key] = default, 'default'
+            logger.warning(f"{filename.name}: no {key} in the file or arguments; using the default {default}")
+    metadata['scale_source'] = source
 
     return ImageStack(
         data=data,
         metadata=metadata,
-        pixel_size=kwargs.get('pixel_size', 0.1),
-        time_interval=kwargs.get('time_interval', 0.1),
+        pixel_size=values['pixel_size'],
+        time_interval=values['time_interval'],
         channels=kwargs.get('channels', 1)
     )
+
+
+_UM_PER_UNIT = {'micron': 1.0, 'um': 1.0, '\u00b5m': 1.0, '\u03bcm': 1.0, 'nm': 1e-3, 'mm': 1e3}
+
+
+def _scale_from_tiff(tif) -> Dict:
+    """Pixel size (um) and frame interval (s) stored in an ImageJ or OME TIFF, where present."""
+    out = {}
+    if tif.is_ome and tif.ome_metadata:
+        import re
+        m = re.search(r'PhysicalSizeX="([0-9.eE+-]+)"', tif.ome_metadata)
+        unit = re.search(r'PhysicalSizeXUnit="([^"]+)"', tif.ome_metadata)
+        if m:
+            out['pixel_size'] = float(m.group(1)) * _UM_PER_UNIT.get(unit.group(1) if unit else 'um', 1.0)
+        t = re.search(r'TimeIncrement="([0-9.eE+-]+)"', tif.ome_metadata)
+        if t:
+            out['time_interval'] = float(t.group(1))
+    ij = tif.imagej_metadata or {}
+    page = tif.pages[0]
+    unit = str(ij.get('unit', '')).strip()
+    if 'pixel_size' not in out and unit in _UM_PER_UNIT and 'XResolution' in page.tags:
+        num, den = page.tags['XResolution'].value
+        if num > 0:
+            out['pixel_size'] = den / num * _UM_PER_UNIT[unit]
+    if 'time_interval' not in out and ij.get('finterval'):
+        out['time_interval'] = float(ij['finterval'])
+    return out
 
 
 def _load_hdf5(filename: Path, **kwargs) -> ImageStack:

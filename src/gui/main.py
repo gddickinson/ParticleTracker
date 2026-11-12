@@ -372,8 +372,9 @@ class ParticleTrackerGUI(QMainWindow):
 
         ax.errorbar(msd_results['time_lags'], msd_results['mean_msd'],
                    yerr=msd_results['std_msd'], fmt='o-')
-        ax.set_xlabel('Time lag (s)')
-        ax.set_ylabel('MSD (μm²)')
+        units = msd_results.get('units', {'length': 'px', 'time': 'frame'})
+        ax.set_xlabel(f"Time lag ({units['time']})")
+        ax.set_ylabel(f"MSD ({units['length']}²)")
         ax.set_title('Mean Squared Displacement')
         ax.grid(True, alpha=0.3)
 

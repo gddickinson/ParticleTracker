@@ -255,8 +255,11 @@ class ParticleTracker:
         if max_lag is None:
             max_lag = self.config['analysis']['msd_lag_max']
 
+        # Positions are in pixels: scale by the stack's pixel size (um) so
+        # MSDs are in um^2 and D in um^2/s (results carry 'units').
         msd_results = calculate_msd(tracks, max_lag=max_lag,
-                                   time_interval=self.image_stack.time_interval)
+                                    time_interval=self.image_stack.time_interval,
+                                    pixel_size=self.image_stack.pixel_size)
 
         return msd_results
 
@@ -305,7 +308,9 @@ class ParticleTracker:
 
         classifications = {}
         for track in tracks:
-            motion_class = classify_track_motion(track, method=method)
+            motion_class = classify_track_motion(
+                track, method=method,
+                time_interval=self.image_stack.time_interval if self.image_stack else 1.0)
             classifications[track.track_id] = motion_class
 
         return classifications
@@ -420,7 +425,7 @@ class ParticleTracker:
             # Load tracking results
             if 'tracks' in f:
                 df = pd.DataFrame(f['tracks'][:])
-                tracker.tracking_result = TrackingResult.load_from_dataframe(df)
+                tracker.tracking_result = TrackingResult.from_dataframe(df)
 
         logger.info("Project loaded successfully")
         return tracker

@@ -386,25 +386,31 @@ class TrackingResult:
         else:
             raise ValueError(f"Unknown format: {format}")
             
-        # Reconstruct tracks from dataframe
+        return cls.from_dataframe(df)
+
+    @classmethod
+    def from_dataframe(cls, df: pd.DataFrame) -> 'TrackingResult':
+        """Rebuild tracks from a DataFrame with track_id, frame, x, y
+        (optional z, intensity, uncertainty) columns."""
         result = cls()
-        
+
         for track_id, group in df.groupby('track_id'):
             track = Track(track_id=int(track_id))
-            
+
             for _, row in group.iterrows():
+                z = row.get('z', None)
                 detection = Detection(
-                    x=row['x'],
-                    y=row['y'],
-                    z=row.get('z', None),
+                    x=float(row['x']),
+                    y=float(row['y']),
+                    z=None if z is None or pd.isna(z) else float(z),
                     t=int(row['frame']),
-                    intensity=row['intensity'],
-                    uncertainty=row['uncertainty']
+                    intensity=float(row.get('intensity', 0.0)),
+                    uncertainty=float(row.get('uncertainty', 0.0))
                 )
                 track.add_detection(detection)
-                
+
             result.add_track(track)
-            
+
         return result
 
 

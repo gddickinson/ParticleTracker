@@ -22,7 +22,8 @@ except ImportError:
 
 def calculate_msd(tracks: List[Track],
                   max_lag: int = 50,
-                  time_interval: float = 1.0) -> Dict:
+                  time_interval: Optional[float] = None,
+                  pixel_size: Optional[float] = None) -> Dict:
     """
     Calculate mean squared displacement for tracks.
 
@@ -36,21 +37,28 @@ def calculate_msd(tracks: List[Track],
     Args:
         tracks: List of Track objects
         max_lag: Maximum time lag to calculate (frames)
-        time_interval: Time between frames (seconds)
+        time_interval: Time between frames in seconds (None: lags in frames)
+        pixel_size: Pixel size in micrometres; positions (pixels) are scaled
+            by it so MSDs are in um^2 (None: MSDs in px^2)
 
     Returns:
         Dictionary with MSD results: lags (frames), time_lags, mean_msd and
         std_msd across tracks (NaN where no track has that lag),
         individual_msds (tracks x lags, NaN where undefined), n_pairs (pairs
-        summed over tracks), n_tracks_per_lag, n_tracks.
+        summed over tracks), n_tracks_per_lag, n_tracks, and units
+        ({'length': 'um' or 'px', 'time': 's' or 'frame'}).
     """
     lags = np.arange(1, max_lag + 1)
+    units = {'length': 'px' if pixel_size is None else 'um',
+             'time': 'frame' if time_interval is None else 's'}
+    scale = 1.0 if pixel_size is None else float(pixel_size)
+    time_interval = 1.0 if time_interval is None else float(time_interval)
     all_msds, all_pairs = [], []
 
     for track in tracks:
         if track.length < 5:  # Skip very short tracks
             continue
-        track_msd, pairs = frame_msd(track.times, track.positions, max_lag)
+        track_msd, pairs = frame_msd(track.times, track.positions * scale, max_lag)
         if np.any(pairs > 0):
             all_msds.append(track_msd)
             all_pairs.append(pairs)
@@ -63,7 +71,8 @@ def calculate_msd(tracks: List[Track],
             'std_msd': np.zeros_like(lags),
             'n_pairs': np.zeros_like(lags),
             'n_tracks_per_lag': np.zeros_like(lags),
-            'n_tracks': 0
+            'n_tracks': 0,
+            'units': units
         }
 
     all_msds = np.array(all_msds)
@@ -83,12 +92,28 @@ def calculate_msd(tracks: List[Track],
         'individual_msds': all_msds,
         'n_pairs': np.sum(all_pairs, axis=0),
         'n_tracks_per_lag': n_per_lag,
-        'n_tracks': len(all_msds)
+        'n_tracks': len(all_msds),
+        'units': units
     }
 
 
 def fit_diffusion_model(msd_results: Dict,
                         model: str = 'brownian') -> Dict:
+    """
+    Fit a diffusion model to MSD data (see _fit_diffusion_model) and attach
+    the units of the fitted parameters, taken from msd_results['units']
+    (pixels and frames when absent).
+    """
+    fit = _fit_diffusion_model(msd_results, model)
+    u = msd_results.get('units', {'length': 'px', 'time': 'frame'})
+    L, T = u['length'], u['time']
+    fit['units'] = {'diffusion_coefficient': f'{L}^2/{T}', 'velocity': f'{L}/{T}',
+                    'confinement_area': f'{L}^2', 'msd': f'{L}^2', 'time': T}
+    return fit
+
+
+def _fit_diffusion_model(msd_results: Dict,
+                         model: str = 'brownian') -> Dict:
     """
     Fit diffusion model to MSD data.
 
