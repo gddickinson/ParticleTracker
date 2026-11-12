@@ -169,8 +169,15 @@ class ParticleTracker:
         # Import detector
         create_detector = _sibling('detection.detector_factory').create_detector
 
-        # Merge config with provided params
-        config = self.config['detection'].copy()
+        # Merge config with provided params. The configured parameters belong
+        # to the configured method; another method uses its own defaults
+        # (e.g. LoG/DoG 'threshold' is on a 0-1 scale, the wavelet's is in
+        # noise standard deviations).
+        configured = self.config['detection']
+        if configured.get('method', 'wavelet') == method:
+            config = configured.copy()
+        else:
+            config = {}
         config.update(params)
         config['method'] = method
 
