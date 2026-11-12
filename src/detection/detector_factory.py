@@ -83,7 +83,7 @@ def create_detector(config: Dict) -> BaseDetector:
         - 'wavelet': Wavelet-transform based detection (default). Best for noisy data.
         - 'log': Laplacian of Gaussian blob detection. Fast, good for well-separated particles.
         - 'dog': Difference of Gaussians. Fastest classical method.
-        - 'deep': Deep learning detector (requires torch).
+        - 'deep': Deep learning detector: not implemented yet (raises NotImplementedError).
         - 'gaussian': Direct Gaussian fitting. Most accurate but slowest.
 
     Args:
@@ -105,13 +105,13 @@ def create_detector(config: Dict) -> BaseDetector:
         from .log_detector import LoGDetector
         return LoGDetector(config)
     elif method == 'dog':
-        from .dog_detector import DoGDetector
+        from .log_detector import DoGDetector
         return DoGDetector(config)
     elif method == 'deep':
-        from .deep_detector import DeepDetector
-        return DeepDetector(config)
+        raise NotImplementedError("The deep learning detector is not implemented yet "
+                                  "(src/models/ is empty); use 'wavelet', 'log', 'dog' or 'gaussian'.")
     elif method == 'gaussian':
-        from .gaussian_detector import GaussianFitDetector
+        from .log_detector import GaussianFitDetector
         return GaussianFitDetector(config)
     else:
         raise ValueError(f"Unknown detection method: {method}")

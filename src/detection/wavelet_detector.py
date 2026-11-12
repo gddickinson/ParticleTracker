@@ -8,7 +8,6 @@ inspired by ThunderSTORM's B-spline wavelet approach.
 import numpy as np
 from typing import List, Tuple
 from scipy import ndimage
-import pywt
 
 try:
     from .detector_factory import BaseDetector
