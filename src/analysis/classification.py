@@ -174,7 +174,8 @@ def _extract_track_features(track: Track, time_interval: float) -> Dict:
             v1 = positions[i] - positions[i-1]
             v2 = positions[i+1] - positions[i]
 
-            angle = np.arctan2(np.cross(v1, v2), np.dot(v1, v2))
+            cross = v1[0] * v2[1] - v1[1] * v2[0]  # z of the 2D cross product
+            angle = np.arctan2(cross, np.dot(v1, v2))
             angles.append(abs(angle))
 
         features['mean_turning_angle'] = np.mean(angles) if angles else 0
