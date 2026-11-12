@@ -34,11 +34,13 @@ def initial_slope_D(frames, positions, fit_lags=CONFINEMENT_FIT_LAGS):
     """
     D (length^2 per frame) from a straight-line fit (with intercept, which
     absorbs localisation error) of MSD = 4 D t over frame lags 1..fit_lags.
-    NaN if fewer than 3 of those lags have pairs.
+    NaN if fewer than min(3, fit_lags) of those lags have pairs (fit_lags >= 2).
     """
+    if fit_lags < 2:
+        raise ValueError("fit_lags must be at least 2 (the fit has an intercept)")
     msd, n = frame_msd(frames, positions, fit_lags)
     ok = n > 0
-    if ok.sum() < 3:
+    if ok.sum() < min(3, fit_lags):
         return np.nan
     t = np.arange(1, fit_lags + 1, dtype=float)[ok]
     m = msd[ok]

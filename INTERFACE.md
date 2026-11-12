@@ -33,7 +33,10 @@ ParticleTracker/
       motion.py            -- calculate_msd (pixel_size/time_interval -> units), fit_diffusion_model
                               (adds units), calculate_velocity, calculate_directionality,
                               detect_confinement (method 'saxton' | 'rg_legacy'), classify_motion_type
-      classification.py    -- classify_track_motion, batch_classify_tracks,
+                              (-> msd_classifier)
+      msd_classifier.py    -- MSD classifier: MSD_CLASSIFIER_DEFAULTS (options), drift_test, anomalous_alpha,
+                              alpha_fit_lags, msd_track_features, classify_features, classify_msd
+      classification.py    -- classify_track_motion (method 'msd' | 'msd_legacy' | 'ml' | 'hmm', **options), batch_classify_tracks,
                               get_classification_summary, _extract_track_features
     utils/
       io.py                -- load_image_stack, save_image_stack, export_results
@@ -58,6 +61,7 @@ ParticleTracker/
     build_static.py        -- static site export (site/)
     make_demo.py           -- writes src/web/static/demo/movie.u16 from the simulator
     make_engine_fixture.py -- writes tests/fixtures/engine_cases.json (Python results for the JS ports)
+    msd_classifier_study.py -- confusion matrices of the MSD classifier vs simulator truth -> docs/msd_classifier.md
     screenshots.py         -- Playwright smoke test + README screenshots (docs/img)
   tests/
     test_data_structures.py
@@ -66,7 +70,7 @@ ParticleTracker/
     test_motion.py
     test_detector_factory.py, test_lap_linking.py, test_msd_frames.py, test_confinement_level.py,
     test_units.py, test_gui_launch_path.py, test_simulation.py, test_track_features.py,
-    test_pipeline_defaults.py  -- regression tests for the 2026-11-12 fixes
+    test_pipeline_defaults.py, test_msd_classifier.py  -- regression tests for the 2026-11 fixes
     test_web.py            -- web API, static build, fixture current, node engine tests
 ```
 

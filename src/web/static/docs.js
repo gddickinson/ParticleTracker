@@ -38,12 +38,15 @@ route('methods', async () => {
     <div class="card"><b>Diffusion models</b><span>brownian MSD = 4Dt (straight line with intercept) · anomalous MSD = 4Dt<sup>α</sup>
       (line in log-log) · directed MSD = 4Dt + (vt)² · confined MSD = A(1 − e<sup>−4Dt/A</sup>) (scipy curve_fit; Python only).</span></div>
     <div class="card"><b>Confinement level</b><span>L = 2.5117·D·t/R² − 0.2048 (Saxton 1993, Biophys. J. 64:1766; Simson, Sheets &amp;
-      Jacobson 1995, Biophys. J. 69:989): D from the slope of the MSD over lags 1–4 frames, t the duration, R the largest
-      distance from the start. Confined when L &gt; 3.16. Dimensionless, so independent of speed and units.</span></div>
-    <div class="card"><b>MSD classifier</b><span>Tracks of at least 10 points: confined if L &gt; 3.16; else subdiffusive if α &lt; 0.85,
-      superdiffusive if α &gt; 1.15 (α from the track's MSD up to half its length, max 20 lags); else directed if net/total path
-      length &gt; 0.7 or the directed fit's R² beats the Brownian fit's by 0.1; else brownian. The 'ml' and 'hmm' methods
-      are placeholders that return the same classes.</span></div>
+      Jacobson 1995, Biophys. J. 69:989): D from the slope of the MSD over the first lags, t the duration, R the largest
+      distance from the start. <code>detect_confinement</code>: lags 1–4, confined when L &gt; 3.16 (the published setting);
+      the classifier: lags 1–2, L &gt; 2 (a free walker stays that close with probability under 1 %). Dimensionless.</span></div>
+    <div class="card"><b>MSD classifier</b><span>Tracks of at least 10 points: confined if L &gt; 2; else directed if the drift
+      test (net displacement against the step spread, χ² with 2 d.o.f.) gives p &lt; 0.01; else confined if α &lt; 0.6 and
+      directed if α &gt; 1.4 (α from the MSD over lags 1 to a quarter of the track, max 10; with
+      <code>alpha_classes='anomalous'</code> these are subdiffusive / superdiffusive); else brownian. All thresholds and the
+      fit range are options (<code>config['classification']</code>); <code>method='msd_legacy'</code> keeps the old rule.
+      Validation: <code>docs/msd_classifier.md</code>. The 'ml' and 'hmm' methods are placeholders that use 'msd'.</span></div>
   </div>
   <h2>The demo movie</h2>
   <p><code>src/core/simulation.py</code>: particles move in pixels per frame (Brownian steps N(0, 2D) per axis; directed adds a

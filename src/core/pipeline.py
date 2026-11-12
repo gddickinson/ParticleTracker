@@ -92,7 +92,9 @@ class ParticleTracker:
             'analysis': {
                 'msd_lag_max': 50,
                 'diffusion_model': 'brownian'
-            }
+            },
+            # MSD classifier options (analysis/msd_classifier.py)
+            'classification': dict(_sibling('analysis.msd_classifier').MSD_CLASSIFIER_DEFAULTS)
         }
 
     def load_data(self, filename: Union[str, Path], **kwargs) -> ImageStack:
@@ -305,13 +307,15 @@ class ParticleTracker:
         return fit_results
 
     def classify_motion(self, tracks: Optional[Union[TrackingResult, List[Track]]] = None,
-                       method: str = 'msd') -> Dict:
+                       method: str = 'msd', **options) -> Dict:
         """
         Classify motion type for each track.
 
         Args:
             tracks: TrackingResult or list of tracks
-            method: Classification method ('msd', 'ml', 'hmm')
+            method: Classification method ('msd', 'msd_legacy', 'ml', 'hmm')
+            **options: MSD classifier options, overriding config['classification']
+                (see analysis/msd_classifier.py for the options and defaults)
 
         Returns:
             Dictionary mapping track_id to motion class
@@ -327,11 +331,13 @@ class ParticleTracker:
 
         classify_track_motion = _sibling('analysis.classification').classify_track_motion
 
+        opts = {} if method == 'msd_legacy' else {**self.config.get('classification', {}), **options}
         classifications = {}
         for track in tracks:
             motion_class = classify_track_motion(
                 track, method=method,
-                time_interval=self.image_stack.time_interval if self.image_stack else 1.0)
+                time_interval=self.image_stack.time_interval if self.image_stack else 1.0,
+                **opts)
             classifications[track.track_id] = motion_class
 
         return classifications

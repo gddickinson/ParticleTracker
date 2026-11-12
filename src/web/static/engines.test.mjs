@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { detectFrame } from './detect_engine.js';
 import { linkLap } from './link_engine.js';
-import { ensemble, perTrack } from './analysis_engine.js';
+import { classifyFeatures, ensemble, msdTrackFeatures, perTrack } from './analysis_engine.js';
 import { detectionScores, trackingScores } from './score_engine.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
@@ -63,4 +63,11 @@ fx.link_cases.forEach((c, ci) => {
   close(trackingScores(tracks, fx.truth), c.tracking_scores, `link[${ci}].tracking_scores`);
   console.log(`link+analysis case ${ci} (${JSON.stringify(c.params)}): ${tracks.length} tracks ok`);
 });
+fx.classify_cases.forEach((c, ci) => fx.classify_opts.forEach((o, oi) => {
+  const f = msdTrackFeatures(c, o);
+  for (const k of ['length', 'alpha_fit_lags', 'alpha', 'drift_z2', 'drift_p', 'confinement_level'])
+    close(Number.isFinite(f[k]) ? f[k] : null, c.features[oi][k], `classify[${ci}][${oi}].${k}`, 1e-9);
+  close(classifyFeatures(f, o), c.classes[oi], `classify[${ci}][${oi}].class`);
+}));
+console.log(`classifier: ${fx.classify_cases.length} tracks x ${fx.classify_opts.length} option sets ok`);
 console.log(`engines: ${checks} checks ok`);

@@ -1,4 +1,4 @@
-// Port of the track analysis (src/analysis/msd.py, motion.py, confinement.py, classification._classify_by_msd) and
+// Port of the track analysis (src/analysis/msd.py, motion.py, confinement.py, msd_classifier.py) and
 // of the web layer's per_track() / ensemble() (src/web/analysis.py). Tracks are {frames, x, y} in pixels and frames.
 // Fits: 'brownian' and 'anomalous' are numpy.polyfit straight lines; 'directed' (MSD = 4Dt + (vt)^2, D, v >= 0) is
 // solved exactly as non-negative least squares in (4D, v^2), the same optimum scipy's curve_fit converges to; the
@@ -104,12 +104,12 @@ export function directionality(tr) {
 
 // Saxton/Simson confinement level (confinement.py): 2.5117 D t / R^2 - 0.2048, NaN if undefined.
 export const CONFINEMENT_LEVEL_THRESHOLD = 3.16;
-export function confinementLevel(tr) {
+export function confinementLevel(tr, fitLags = 4) {
   if (tr.frames.length < 2) return NaN;
-  const { msd, n } = frameMsd(tr.frames, tr.x, tr.y, 4);
+  const { msd, n } = frameMsd(tr.frames, tr.x, tr.y, fitLags);
   const lt = [], lm = [];
   n.forEach((c, i) => { if (c > 0) { lt.push(i + 1); lm.push(msd[i]); } });
-  if (lt.length < 3) return NaN;
+  if (lt.length < Math.min(3, fitLags)) return NaN;
   const D = line(lt, lm)[0] / 4;
   const idx = tr.frames.map((f, i) => i).sort((a, b) => tr.frames[a] - tr.frames[b]);
   const x0 = tr.x[idx[0]], y0 = tr.y[idx[0]];
@@ -136,34 +136,71 @@ export function confinedLegacy(tr, win = 10) {
   return c / (n - win + 1) > 0.7;
 }
 
-// classification._classify_by_msd
-export function classifyTrack(tr, timeInterval = 1) {
-  const n = tr.frames.length;
-  if (n < 10) return 'insufficient_data';
-  const msd = calculateMsd([tr], Math.min(n >> 1, 20), timeInterval);
-  const br = fitModel(msd, 'brownian'), di = fitModel(msd, 'directed'), an = fitModel(msd, 'anomalous');
-  const L = confinementLevel(tr);
-  if (Number.isFinite(L) && L > CONFINEMENT_LEVEL_THRESHOLD) return 'confined';
-  if (an.success) { if (an.alpha < 0.85) return 'subdiffusive'; if (an.alpha > 1.15) return 'superdiffusive'; }
-  if (directionality(tr) > 0.7) return 'directed';
-  if (di.success && br.success && di.r_squared > br.r_squared + 0.1) return 'directed';
+// analysis/msd_classifier.py: confinement level, drift test, anomalous exponent (see that module for the rules).
+export const MSD_CLASSIFIER_DEFAULTS = { min_length: 10, fit_fraction: 0.25, max_fit_lag: 10, alpha_sub: 0.6,
+  alpha_super: 1.4, drift_p: 0.01, confinement_fit_lags: 2, confinement_threshold: 2.0, alpha_classes: 'motion' };
+
+export const alphaFitLags = (n, frac = 0.25, cap = 10) => Math.min(Math.max(Math.trunc(n * frac), 4), cap);
+
+export function anomalousAlpha(tr, maxLag) {
+  const { msd, n } = frameMsd(tr.frames, tr.x, tr.y, maxLag);
+  const lx = [], ly = [];
+  n.forEach((c, i) => { if (c > 0 && msd[i] > 0) { lx.push(Math.log(i + 1)); ly.push(Math.log(msd[i])); } });
+  return lx.length < 3 ? NaN : line(lx, ly)[0];
+}
+
+export function driftTest(tr) {
+  const m = tr.frames.length;
+  if (m < 3) return { z2: NaN, p: NaN };
+  const idx = tr.frames.map((f, i) => i).sort((a, b) => tr.frames[a] - tr.frames[b]);
+  const f = idx.map(i => Math.round(tr.frames[i])), x = idx.map(i => tr.x[i]), y = idx.map(i => tr.y[i]);
+  const T = f[m - 1] - f[0], nx = x[m - 1] - x[0], ny = y[m - 1] - y[0];
+  const steps = [];
+  for (let i = 0; i + 1 < m; i++) { const dt = f[i + 1] - f[i]; if (dt > 0) steps.push([x[i + 1] - x[i], y[i + 1] - y[i], dt]); }
+  if (steps.length < 2 || T <= 0) return { z2: NaN, p: NaN };
+  const vx = nx / T, vy = ny / T;
+  let s = 0;
+  for (const [dx, dy, dt] of steps) s += ((dx - dt * vx) ** 2 + (dy - dt * vy) ** 2) / dt;
+  const s2 = s / (2 * (steps.length - 1));
+  if (!(s2 > 0)) return { z2: NaN, p: NaN };
+  const z2 = (nx * nx + ny * ny) / (T * s2);
+  return { z2, p: Math.exp(-z2 / 2) };
+}
+
+export function msdTrackFeatures(tr, opts = {}) {
+  const o = { ...MSD_CLASSIFIER_DEFAULTS, ...opts }, n = tr.frames.length;
+  const K = alphaFitLags(n, o.fit_fraction, o.max_fit_lag);
+  const d = n >= 3 ? driftTest(tr) : { z2: NaN, p: NaN };
+  return { length: n, alpha_fit_lags: K, alpha: n >= 4 ? anomalousAlpha(tr, K) : NaN, drift_z2: d.z2, drift_p: d.p,
+    confinement_level: n >= 2 ? confinementLevel(tr, o.confinement_fit_lags) : NaN };
+}
+
+export function classifyFeatures(f, opts = {}) {
+  const o = { ...MSD_CLASSIFIER_DEFAULTS, ...opts }, motion = o.alpha_classes === 'motion';
+  if (f.length < o.min_length) return 'insufficient_data';
+  if (Number.isFinite(f.confinement_level) && f.confinement_level > o.confinement_threshold) return 'confined';
+  if (Number.isFinite(f.drift_p) && f.drift_p < o.drift_p) return 'directed';
+  if (Number.isFinite(f.alpha) && f.alpha < o.alpha_sub) return motion ? 'confined' : 'subdiffusive';
+  if (Number.isFinite(f.alpha) && f.alpha > o.alpha_super) return motion ? 'directed' : 'superdiffusive';
   return 'brownian';
 }
 
+export const classifyTrack = (tr, opts = {}) => classifyFeatures(msdTrackFeatures(tr, opts), opts);
+
 // web/analysis.per_track
 export function perTrack(tr, pixelSize, timeInterval) {
-  const n = tr.frames.length, row = { track_id: tr.track_id, length: n, motion_class: classifyTrack(tr, timeInterval) };
+  const n = tr.frames.length, f = msdTrackFeatures(tr), ok = n >= MSD_CLASSIFIER_DEFAULTS.min_length;
+  const row = { track_id: tr.track_id, length: n, motion_class: classifyFeatures(f),
+    alpha: ok && Number.isFinite(f.alpha) ? f.alpha : null, alpha_fit_lags: f.alpha_fit_lags,
+    drift_p: ok && Number.isFinite(f.drift_p) ? f.drift_p : null };
   if (n >= 5) {
-    const lag = Math.max(3, Math.min(n >> 1, 20));
-    const an = fitModel(calculateMsd([tr], lag, timeInterval), 'anomalous');
-    const br = fitModel(calculateMsd([tr], lag, timeInterval, pixelSize), 'brownian');
-    row.alpha = an.success ? an.alpha : null;
+    const br = fitModel(calculateMsd([tr], Math.max(3, Math.min(n >> 1, 20)), timeInterval, pixelSize), 'brownian');
     row.D = br.success ? br.diffusion_coefficient : null;
   }
   row.directionality = directionality(tr);
-  const L = n >= 10 ? confinementLevel(tr) : NaN;
+  const L = ok ? f.confinement_level : NaN;
   row.confinement_level = Number.isFinite(L) ? L : null;
-  row.confined = Number.isFinite(L) && L > CONFINEMENT_LEVEL_THRESHOLD;
+  row.confined = Number.isFinite(L) && L > MSD_CLASSIFIER_DEFAULTS.confinement_threshold;
   row.confined_legacy = confinedLegacy(tr);
   return row;
 }

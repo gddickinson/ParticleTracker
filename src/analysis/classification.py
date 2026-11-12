@@ -13,6 +13,11 @@ except ImportError:
     from core.data_structures import Track
 
 try:
+    from .msd_classifier import classify_msd
+except ImportError:
+    from analysis.msd_classifier import classify_msd
+
+try:
     from .motion import (
         calculate_msd,
         fit_diffusion_model,
@@ -30,30 +35,44 @@ except ImportError:
 
 def classify_track_motion(track: Track,
                          method: str = 'msd',
-                         time_interval: float = 1.0) -> str:
+                         time_interval: float = 1.0,
+                         **options) -> str:
     """
     Classify motion type of a single track.
 
     Args:
         track: Track object
-        method: Classification method ('msd', 'ml', 'hmm')
-        time_interval: Time between frames
+        method: 'msd' (analysis/msd_classifier.py: confinement level, drift
+            test, anomalous exponent), 'msd_legacy' (the original rule, kept
+            for comparison), 'ml' and 'hmm' (placeholders that use 'msd')
+        time_interval: Time between frames (the 'msd' tests are dimensionless
+            and do not need it)
+        **options: MSD classifier options (msd_classifier.MSD_CLASSIFIER_DEFAULTS)
 
     Returns:
         Motion class string
     """
     if method == 'msd':
-        return _classify_by_msd(track, time_interval)
+        return classify_msd(track, **options)
     elif method == 'ml':
-        return _classify_by_ml(track, time_interval)
+        return _classify_by_ml(track, time_interval, **options)
     elif method == 'hmm':
-        return _classify_by_hmm(track, time_interval)
+        return _classify_by_hmm(track, time_interval, **options)
+    elif method == 'msd_legacy':
+        return _classify_by_msd_legacy(track, time_interval)
     else:
         raise ValueError(f"Unknown classification method: {method}")
 
 
-def _classify_by_msd(track: Track, time_interval: float) -> str:
-    """Classify using MSD analysis."""
+def _classify_by_msd_legacy(track: Track, time_interval: float) -> str:
+    """
+    The original MSD rule (before 2026-11-12), kept for comparison. Fits alpha
+    over lags up to n/2 (max 20), reports alpha > 1.15 as 'superdiffusive'
+    before looking at directed motion, and uses the confinement level with
+    lags 1-4 and threshold 3.16. On simulated tracks it calls most directed
+    motion 'superdiffusive', most corralled motion 'subdiffusive' and about
+    half of free diffusion something else (docs/msd_classifier.md).
+    """
     if track.length < 10:
         return 'insufficient_data'
 
@@ -96,7 +115,7 @@ def _classify_by_msd(track: Track, time_interval: float) -> str:
     return 'brownian'
 
 
-def _classify_by_ml(track: Track, time_interval: float) -> str:
+def _classify_by_ml(track: Track, time_interval: float, **options) -> str:
     """
     Classify using machine learning features.
 
@@ -108,10 +127,10 @@ def _classify_by_ml(track: Track, time_interval: float) -> str:
 
     # TODO: Apply trained classifier
     # For now, fall back to MSD-based
-    return _classify_by_msd(track, time_interval)
+    return classify_msd(track, **options)
 
 
-def _classify_by_hmm(track: Track, time_interval: float) -> str:
+def _classify_by_hmm(track: Track, time_interval: float, **options) -> str:
     """
     Classify using Hidden Markov Model.
 
@@ -119,7 +138,7 @@ def _classify_by_hmm(track: Track, time_interval: float) -> str:
     Placeholder for now.
     """
     # TODO: Implement HMM-based classification
-    return _classify_by_msd(track, time_interval)
+    return classify_msd(track, **options)
 
 
 def _extract_track_features(track: Track, time_interval: float) -> Dict:
@@ -189,7 +208,8 @@ def _extract_track_features(track: Track, time_interval: float) -> Dict:
 
 def batch_classify_tracks(tracks: List[Track],
                           method: str = 'msd',
-                          time_interval: float = 1.0) -> Dict[int, str]:
+                          time_interval: float = 1.0,
+                          **options) -> Dict[int, str]:
     """
     Classify multiple tracks.
 
@@ -204,7 +224,7 @@ def batch_classify_tracks(tracks: List[Track],
     classifications = {}
 
     for track in tracks:
-        motion_class = classify_track_motion(track, method, time_interval)
+        motion_class = classify_track_motion(track, method, time_interval, **options)
         classifications[track.track_id] = motion_class
 
     return classifications

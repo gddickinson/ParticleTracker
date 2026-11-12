@@ -60,33 +60,36 @@ route('analyse', async () => {
     <tbody>${TYPES.map((t, i) => `<tr><th scope="row">${cls(t)}</th>${conf[i].map((n, j) => `<td class="${n ? (CLASSES[j] === t ? 'hit' : 'miss') : ''}">${n}</td>`).join('')}</tr>`).join('')}
     <tr><th scope="row" class="mute">on no particle</th>${noPart.map(n => `<td>${n}</td>`).join('')}</tr></tbody></table></div>
   <p class="hint">Each track is matched to the simulated particle most of its points sit on (within 2 px). The classifier
-    checks, in order: confinement level &gt; 3.16 → confined; α &lt; 0.85 → subdiffusive, α &gt; 1.15 → superdiffusive
-    (α from a log-log fit of the track's MSD); net/total path &gt; 0.7 or a clearly better directed-motion fit → directed;
-    else brownian. Directed motion with diffusion usually has α &gt; 1.15, so it is called superdiffusive here.</p>
+    checks, in order: confinement level L &gt; 2 → confined; drift test p &lt; 0.01 → directed; α &lt; 0.6 → confined,
+    α &gt; 1.4 → directed (α from a log-log fit of the track's MSD over lags 1 to a quarter of its length, max 10); else
+    brownian. Each test flags about 1–2 % of free-diffusion tracks of 50 points. The thresholds are options; the
+    confusion matrices before and after the 2026-11 fix, on thousands of simulated tracks, are in
+    <code>docs/msd_classifier.md</code>.</p>
   <h2>Confinement test</h2>
   <div class="scroll"><table class="tbl"><thead><tr><th scope="col">simulated</th><th scope="col">tracks ≥ 10 points</th>
-    <th scope="col">confined: Saxton/Simson level &gt; 3.16</th><th scope="col">confined: original rule (Rg &lt; 2 px)</th></tr></thead>
+    <th scope="col">confined: Saxton/Simson level &gt; 2</th><th scope="col">confined: original rule (Rg &lt; 2 px)</th></tr></thead>
     <tbody>${confRows.map(([t, n, a, b]) => `<tr><td>${cls(t)}</td><td>${n}</td><td>${a}</td><td>${b}</td></tr>`).join('')}</tbody></table></div>
   <p class="hint">The original rule (still available as <code>detect_confinement(method='rg_legacy')</code>) called a track confined when
     its radius of gyration stayed under 2 pixels in most 10-point windows, whatever the particle's speed or the pixel size,
-    so slow free diffusion was confined too. The level L = 2.5117·D·t/R² − 0.2048 (Saxton 1993; Simson et al. 1995) is dimensionless.</p>
+    so slow free diffusion was confined too. The level L = 2.5117·D·t/R² − 0.2048 (Saxton 1993; Simson et al. 1995), with D from
+    the MSD slope between lags 1 and 2, is dimensionless.</p>
   <h2>Tracks</h2>
   <div class="two"><div id="tt" class="scroll tall"></div><div class="panel" id="one"><p class="mute">Select a track to see its MSD.</p></div></div>`;
 
   $('#tt').innerHTML = `<table class="tbl"><thead><tr><th scope="col">track</th><th scope="col">points</th><th scope="col">particle</th>
     <th scope="col">simulated</th><th scope="col">assigned</th><th scope="col">α</th><th scope="col">D (${L}²/s)</th>
-    <th scope="col">net/path</th><th scope="col">level L</th></tr></thead><tbody>
+    <th scope="col">net/path</th><th scope="col">drift p</th><th scope="col">level L</th></tr></thead><tbody>
     ${r.per_track.map(p => { const k = match.get(p.track_id); return `<tr tabindex="0" data-id="${p.track_id}"><td>${p.track_id}</td><td>${p.length}</td>
       <td>${k == null ? '–' : '#' + k}</td><td>${k == null ? '–' : cls(meta.ground_truth[k].motion_type)}</td><td>${cls(p.motion_class)}</td>
-      <td>${fmt(p.alpha)}</td><td>${fmt(p.D, 4)}</td><td>${fmt(p.directionality)}</td><td>${fmt(p.confinement_level, 2)}</td></tr>`; }).join('')}</tbody></table>`;
+      <td>${fmt(p.alpha)}</td><td>${fmt(p.D, 4)}</td><td>${fmt(p.directionality)}</td><td>${p.drift_p == null ? '–' : p.drift_p.toExponential(1)}</td><td>${fmt(p.confinement_level, 2)}</td></tr>`; }).join('')}</tbody></table>`;
   const pick = id => {
     const t = r.tracks.find(x => x.track_id === id), p = r.per_track.find(x => x.track_id === id);
     $('#tt').querySelectorAll('tr').forEach(tr => tr.classList.toggle('sel', +tr.dataset.id === id));
-    const m = calculateMsd([t], Math.max(3, Math.min(t.frames.length >> 1, 20)), dt, ps);
+    const m = calculateMsd([t], Math.max(4, p.alpha_fit_lags), dt, ps);
     $('#one').innerHTML = `<h3>Track ${id}: ${cls(p.motion_class)}</h3>
       ${lines([{ points: m.time_lags.map((x, i) => [x, m.mean_msd[i]]).filter(([, y]) => y > 0), color: color(p.motion_class) }],
         { xlabel: 'time lag (s)', ylabel: `MSD (${L}²)`, logx: true, logy: true })}
-      <p class="hint">Lags up to half the track length (max 20 frames), as the classifier uses.</p>`;
+      <p class="hint">Lags 1–${Math.max(4, p.alpha_fit_lags)} frames: the range the classifier fits α over.</p>`;
   };
   $('#tt').querySelectorAll('tr[data-id]').forEach(tr => {
     tr.addEventListener('click', () => pick(+tr.dataset.id));

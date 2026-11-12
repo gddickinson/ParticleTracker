@@ -3,6 +3,8 @@
 - detect: the wavelet detector with subpixel=False on three demo frames, three parameter sets
 - link/analyse: the default pipeline's detections (subpixel Gaussian refinement) linked by the LAP tracker with three
   parameter sets, with the per-track analysis, the ensemble MSD and fits and the ground-truth scores
+- classify: the MSD classifier's features and classes (three option sets) on 72 simulated tracks (demo motion
+  parameters, three seeds, lengths 12-60, some with missing frames)
 
 Run: python scripts/make_engine_fixture.py
 """
@@ -24,6 +26,35 @@ DETECT = [{"sigma": 1.5, "threshold": 3.0, "min_distance": 3},
           {"sigma": 1.2, "threshold": 4.0, "min_distance": 2},
           {"sigma": 2.0, "threshold": 2.5, "min_distance": 4}]
 LINK = [{}, {"max_displacement": 2.0, "gap_closing": 0}, {"max_displacement": 8.0, "gap_closing": 5, "min_track_length": 10}]
+
+
+CLASSIFY_OPTS = [{}, {"alpha_classes": "anomalous", "drift_p": 0.05},
+                 {"confinement_fit_lags": 4, "confinement_threshold": 3.16, "fit_fraction": 0.5, "max_fit_lag": 20,
+                  "alpha_sub": 0.85, "alpha_super": 1.15, "min_length": 15}]
+
+
+def classify_cases():
+    import numpy as np
+    from src.analysis.msd_classifier import classify_features, msd_track_features
+    from src.core.data_structures import Detection, Track
+    from src.core.simulation import simulate_trajectories
+    tracks = []
+    for seed in (1, 2, 3):
+        rng = np.random.RandomState(seed)
+        types = ["brownian"] * 8 + ["directed"] * 8 + ["confined"] * 8
+        for i, g in enumerate(simulate_trajectories(60, 24, (2000, 2000), rng, 0.3, types, 0.4, 2.0, margin=500)):
+            n = [12, 20, 35, 60][i % 4]
+            frames = np.arange(n)
+            if i % 3 == 0:
+                frames = frames[rng.random_sample(n) > 0.15]       # missing frames
+            t = Track(len(tracks))
+            for f in frames:
+                t.add_detection(Detection(x=g["x"][f] + rng.standard_normal() * 0.05,
+                                          y=g["y"][f] + rng.standard_normal() * 0.05, t=int(f)))
+            tracks.append(t)
+    return [{"frames": [int(v) for v in t.times], "x": [d.x for d in t.detections], "y": [d.y for d in t.detections],
+             "features": [msd_track_features(t, **o) for o in CLASSIFY_OPTS],
+             "classes": [classify_features(msd_track_features(t, **o), **o) for o in CLASSIFY_OPTS]} for t in tracks]
 
 
 def build():
@@ -52,6 +83,7 @@ def build():
         "detect_cases": detect_cases,
         "particles": particles, "detection_scores": detection_scores(particles, truth),
         "link_cases": link_cases,
+        "classify_opts": CLASSIFY_OPTS, "classify_cases": classify_cases(),
     })
 
 

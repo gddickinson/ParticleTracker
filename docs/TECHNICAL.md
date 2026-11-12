@@ -211,28 +211,31 @@ Where:
 
 #### Motion Classification
 
-Multi-criteria classification:
+Multi-criteria classification (`classify_track_motion(track, 'msd', **options)`,
+`src/analysis/msd_classifier.py`; options and defaults in `MSD_CLASSIFIER_DEFAULTS`,
+validated against the simulator in [msd_classifier.md](msd_classifier.md)):
 
 ```
-Decision Tree:
-1. Check confinement: Saxton (1993) / Simson et al. (1995) level
-   L = 2.5117·D·t/R² − 0.2048 (D from the MSD slope over lags 1-4,
-   t the duration, R the largest distance from the start)
-   → If L > 3.16: "confined"
-   (the original rule, Rg < 2 px in most 10-point windows, is
-   detect_confinement(method='rg_legacy'))
-
-2. Fit anomalous diffusion model
-   → If α < 0.85: "subdiffusive"
-   → If α > 1.15: "superdiffusive"
-
-3. Check directionality ratio
-   → If > 0.7: "directed"
-
-4. Compare fit quality
-   → Better directed fit: "directed"
-   → Default: "brownian"
+0. Fewer than min_length (10) points            -> "insufficient_data"
+1. Saxton (1993) / Simson et al. (1995) level
+   L = 2.5117*D*t/R^2 - 0.2048 (D from the MSD slope between lags 1 and
+   confinement_fit_lags = 2, t the duration, R the largest distance from
+   the start); L > confinement_threshold (2.0)   -> "confined"
+2. Drift test: z2 = |net displacement|^2 / (duration * per-axis step
+   variance) is chi-square(2) for free diffusion, p = exp(-z2/2);
+   p < drift_p (0.01)                            -> "directed"
+3. alpha from log MSD vs log lag over lags 1..K,
+   K = clip(int(n * fit_fraction (0.25)), 4, max_fit_lag (10)):
+   alpha < alpha_sub (0.6)   -> "confined"  ("subdiffusive" with alpha_classes='anomalous')
+   alpha > alpha_super (1.4) -> "directed"  ("superdiffusive" with alpha_classes='anomalous')
+4. Otherwise                                     -> "brownian"
 ```
+
+The rule used before 2026-11 is `method='msd_legacy'` (alpha over lags up to n/2,
+alpha thresholds 0.85/1.15 tested before directionality, L from lags 1-4 > 3.16);
+on simulated tracks it called directed motion "superdiffusive" and most corralled
+motion "subdiffusive". `detect_confinement` on its own keeps the published setting
+(lags 1-4, L > 3.16); the original Rg < 2 px rule is `detect_confinement(method='rg_legacy')`.
 
 ## Data Structures
 

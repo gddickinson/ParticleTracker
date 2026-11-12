@@ -398,45 +398,25 @@ def _detect_confinement_rg_legacy(track: Track, window_size: int = 10) -> Dict:
 
 
 def classify_motion_type(track: Track,
-                        time_interval: float = 1.0) -> str:
+                        time_interval: float = 1.0,
+                        **options) -> str:
     """
-    Classify overall motion type of a track.
+    Classify overall motion type of a track: the MSD classifier
+    (analysis/msd_classifier.py, same as classify_track_motion(method='msd')).
+    It used to run its own copy of the old rule (alpha before directed motion),
+    which called diffusion with drift 'superdiffusive'.
 
     Args:
         track: Track object
-        time_interval: Time between frames
+        time_interval: Time between frames (unused: the tests are dimensionless)
+        **options: MSD classifier options
 
     Returns:
-        Motion type string: 'brownian', 'directed', 'confined', 'subdiffusive'
+        'brownian', 'directed', 'confined', 'subdiffusive' / 'superdiffusive'
+        (alpha_classes='anomalous') or 'insufficient_data'
     """
-    if track.length < 10:
-        return 'insufficient_data'
-
-    # Calculate MSD for this track
-    max_lag = min(track.length // 2, 20)
-    msd_result = calculate_msd([track], max_lag=max_lag, time_interval=time_interval)
-
-    # Fit different models
-    brownian_fit = fit_diffusion_model(msd_result, model='brownian')
-    directed_fit = fit_diffusion_model(msd_result, model='directed')
-    anomalous_fit = fit_diffusion_model(msd_result, model='anomalous')
-
-    # Get directionality
-    directionality = calculate_directionality(track)
-
-    # Decision logic
-    if anomalous_fit['success']:
-        alpha = anomalous_fit['alpha']
-        if alpha < 0.9:
-            return 'subdiffusive'
-        elif alpha > 1.1:
-            return 'superdiffusive'
-
-    if directionality['directionality_ratio'] > 0.7:
-        return 'directed'
-
-    confinement = detect_confinement(track)
-    if confinement['is_confined']:
-        return 'confined'
-
-    return 'brownian'
+    try:
+        from .msd_classifier import classify_msd
+    except ImportError:
+        from analysis.msd_classifier import classify_msd
+    return classify_msd(track, **options)

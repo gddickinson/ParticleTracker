@@ -39,3 +39,15 @@ are not used by the site.
   directionality) and two of four confined particles 'subdiffusive' (confinement level 2.8 < 3.16).
 - `pipeline.py` calls `logging.basicConfig(level=INFO)` at import, which configures logging for any program that imports it.
 - NearestNeighborTracker ignores its documented `gap_closing` parameter.
+
+## 2026-11-12 (follow-up): George's decisions on the open items (Claude, branch `web-interface`)
+1. **MSD classifier fixed** (`src/analysis/msd_classifier.py`; old rule kept as `method='msd_legacy'`). Why it failed,
+   measured on thousands of simulated tracks (`scripts/msd_classifier_study.py` -> `docs/msd_classifier.md`): alpha was
+   fitted over lags up to n/2 (max 20), so ~20 % of free-diffusion tracks fell outside 0.85-1.15; alpha > 1.15 was
+   'superdiffusive' before directed motion was tested; the confinement level used lags 1-4, where a small corral is
+   already saturating. Now: confinement level (lags 1-2) > 2, drift test (chi-square, p < 0.01), alpha over lags
+   1..clip(n/4, 4, 10) with 0.6 / 1.4 -> confined / directed (or sub/superdiffusive with `alpha_classes='anomalous'`).
+   All are options (`config['classification']`, `classify_motion(**options)`). Demo-parameter tracks: recall
+   brownian 58 -> 96 %, directed 0 -> 79 %, confined 12 -> 92 %; end to end on 11 demo-like movies 41/0/16 % ->
+   88/65/84 %. `classify_motion_type` now uses the same classifier. JS port + fixture (72 tracks x 3 option sets).
+   Changes classification results (approved: it fixes the problem).

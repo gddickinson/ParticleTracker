@@ -8,9 +8,9 @@ import warnings
 
 import numpy as np
 
-from ..analysis.classification import classify_track_motion
 from ..analysis.motion import (calculate_directionality, calculate_msd, detect_confinement,
                                fit_diffusion_model)
+from ..analysis.msd_classifier import MSD_CLASSIFIER_DEFAULTS, classify_features, msd_track_features
 from ..core.data_structures import ImageStack
 from ..core.pipeline import ParticleTracker
 from .jsonify import jsonable
@@ -53,21 +53,21 @@ def compact_tracks(result):
 
 
 def per_track(track, pixel_size, time_interval):
-    """The numbers the MSD classifier looks at, for one track (None where the track is too short)."""
-    row = {"track_id": int(track.track_id), "length": track.length,
-           "motion_class": classify_track_motion(track, method="msd", time_interval=time_interval)}
+    """The numbers the MSD classifier (analysis/msd_classifier.py, defaults) looks at, for one track."""
+    f = msd_track_features(track)
+    ok = track.length >= MSD_CLASSIFIER_DEFAULTS["min_length"]
+    row = {"track_id": int(track.track_id), "length": track.length, "motion_class": classify_features(f),
+           "alpha": f["alpha"] if ok else None, "alpha_fit_lags": f["alpha_fit_lags"],
+           "drift_p": f["drift_p"] if ok else None}
     if track.length >= 5:
         max_lag = max(3, min(track.length // 2, 20))
-        msd_px = calculate_msd([track], max_lag=max_lag, time_interval=time_interval)
-        an = fit_diffusion_model(msd_px, "anomalous")
         msd_um = calculate_msd([track], max_lag=max_lag, time_interval=time_interval, pixel_size=pixel_size)
         br = fit_diffusion_model(msd_um, "brownian")
-        row["alpha"] = an.get("alpha") if an.get("success") else None
         row["D"] = br.get("diffusion_coefficient") if br.get("success") else None
     row["directionality"] = calculate_directionality(track)["directionality_ratio"]
-    conf = detect_confinement(track)
-    row["confinement_level"] = conf["confinement_level"]
-    row["confined"] = conf["is_confined"]
+    level = f["confinement_level"] if ok else float("nan")
+    row["confinement_level"] = level
+    row["confined"] = bool(np.isfinite(level) and level > MSD_CLASSIFIER_DEFAULTS["confinement_threshold"])
     row["confined_legacy"] = detect_confinement(track, method="rg_legacy")["is_confined"]
     return row
 
