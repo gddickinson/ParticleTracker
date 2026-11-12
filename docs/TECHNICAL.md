@@ -19,12 +19,12 @@ ParticleTracker/
 │   ├── detector_factory.py  # Factory pattern for detectors
 │   ├── wavelet_detector.py  # Wavelet-based detection
 │   ├── log_detector.py      # LoG and DoG detectors
-│   └── deep_detector.py     # Deep learning detector (placeholder)
+│   (deep learning detector: not implemented; create_detector('deep') raises NotImplementedError)
 ├── tracking/           # Particle linking algorithms
 │   ├── tracker_factory.py   # Factory pattern for trackers
 │   ├── lap_tracker.py       # Linear Assignment Problem tracker
 │   ├── nearest_tracker.py   # Nearest neighbor tracker
-│   └── mht_tracker.py       # Multiple Hypothesis Tracker (placeholder)
+│   (multiple hypothesis tracker: not implemented)
 ├── analysis/           # Motion analysis and classification
 │   ├── motion.py           # MSD, diffusion, velocity analysis
 │   └── classification.py   # Motion type classification
@@ -59,7 +59,7 @@ Detection Process:
 - Uncertainty quantification
 
 **Mathematical Basis:**
-- Mexican Hat Wavelet: ψ(r) = (1 - r²/σ²) exp(-r²/(2σ²))
+- Mexican Hat Wavelet (2D): ψ(r) = (1 - r²/(2σ²)) exp(-r²/(2σ²)), made zero-sum on a symmetric grid
 - Localization Precision: σ² = (s² + a²/12)/N + (8πs⁴b²)/(a²N²)
   - s: PSF standard deviation
   - a: pixel size
@@ -183,9 +183,10 @@ Ensemble-averaged MSD calculation:
 MSD(τ) = ⟨|r(t+τ) - r(t)|²⟩
 
 Where:
-- τ: time lag
-- r(t): position at time t
-- ⟨·⟩: ensemble average over all t and tracks
+- τ: time lag in frames: every pair of points exactly τ frames apart is used,
+  so tracks with closed gaps contribute all valid pairs
+- r(t): position at time t (pixels × pixel_size → µm)
+- ⟨·⟩: average over t within a track, then over the tracks that have lag τ
 ```
 
 **Diffusion Models:**
@@ -214,8 +215,12 @@ Multi-criteria classification:
 
 ```
 Decision Tree:
-1. Check confinement (radius of gyration)
-   → If confined: "confined"
+1. Check confinement: Saxton (1993) / Simson et al. (1995) level
+   L = 2.5117·D·t/R² − 0.2048 (D from the MSD slope over lags 1-4,
+   t the duration, R the largest distance from the start)
+   → If L > 3.16: "confined"
+   (the original rule, Rg < 2 px in most 10-point windows, is
+   detect_confinement(method='rg_legacy'))
 
 2. Fit anomalous diffusion model
    → If α < 0.85: "subdiffusive"
@@ -357,13 +362,11 @@ U-track inspired quality metric:
 **Similarities:**
 - Wavelet-based detection
 - Sub-pixel localization
-- STORM/PALM reconstruction
 
-**Advantages:**
+**Differences:**
 - Native Python (easier integration)
 - Built-in tracking (not just detection)
-- Modern deep learning support
-- Comprehensive analysis tools
+- No STORM/PALM reconstruction or deep learning yet (see ROADMAP.md)
 
 ### vs. U-track
 
@@ -386,10 +389,8 @@ U-track inspired quality metric:
 - MSD analysis
 
 **Advantages:**
-- More sophisticated tracking (LAP)
-- Super-resolution support
-- Better for fluorescence microscopy
-- Professional GUI
+- LAP tracking with gap closing
+- PyQt5 GUI
 
 ## Future Enhancements
 
@@ -449,6 +450,4 @@ Contributions welcome! Please see CONTRIBUTING.md for guidelines.
 
 ## Support
 
-- Documentation: https://particletracker.readthedocs.io
-- Issues: https://github.com/yourusername/ParticleTracker/issues
-- Email: your.email@example.com
+- Issues: https://github.com/gddickinson/ParticleTracker/issues
