@@ -12,8 +12,10 @@ from scipy.optimize import curve_fit
 
 try:
     from ..core.data_structures import Track
+    from .msd import frame_msd
 except ImportError:
     from core.data_structures import Track
+    from msd import frame_msd
 
 
 def calculate_msd(tracks: List[Track],
@@ -24,47 +26,32 @@ def calculate_msd(tracks: List[Track],
 
     MSD(Δt) = <[r(t+Δt) - r(t)]²>
 
+    Lags are in frames: pairs of localisations exactly `lag` frames apart are
+    used wherever they sit in the track, so tracks with gaps contribute every
+    valid pair. The ensemble mean at each lag averages only the tracks that
+    have at least one pair at that lag.
+
     Args:
         tracks: List of Track objects
-        max_lag: Maximum time lag to calculate
+        max_lag: Maximum time lag to calculate (frames)
         time_interval: Time between frames (seconds)
 
     Returns:
-        Dictionary with MSD results
+        Dictionary with MSD results: lags (frames), time_lags, mean_msd and
+        std_msd across tracks (NaN where no track has that lag),
+        individual_msds (tracks x lags, NaN where undefined), n_pairs (pairs
+        summed over tracks), n_tracks_per_lag, n_tracks.
     """
-    # Collect all MSDs
-    all_msds = []
     lags = np.arange(1, max_lag + 1)
+    all_msds, all_pairs = [], []
 
     for track in tracks:
         if track.length < 5:  # Skip very short tracks
             continue
-
-        positions = track.positions
-        times = track.times
-
-        # Calculate MSD for this track
-        track_msd = np.zeros(len(lags))
-        counts = np.zeros(len(lags))
-
-        for i, lag in enumerate(lags):
-            # All pairs separated by 'lag' frames
-            displacements_squared = []
-
-            for j in range(len(positions) - lag):
-                # Check if times are actually separated by lag (handle gaps)
-                time_diff = times[j + lag] - times[j]
-                if time_diff == lag:  # No gaps
-                    displacement = positions[j + lag] - positions[j]
-                    disp_squared = np.sum(displacement**2)
-                    displacements_squared.append(disp_squared)
-
-            if displacements_squared:
-                track_msd[i] = np.mean(displacements_squared)
-                counts[i] = len(displacements_squared)
-
-        if np.any(counts > 0):
+        track_msd, pairs = frame_msd(track.times, track.positions, max_lag)
+        if np.any(pairs > 0):
             all_msds.append(track_msd)
+            all_pairs.append(pairs)
 
     if not all_msds:
         return {
@@ -72,13 +59,19 @@ def calculate_msd(tracks: List[Track],
             'time_lags': lags * time_interval,
             'mean_msd': np.zeros_like(lags),
             'std_msd': np.zeros_like(lags),
+            'n_pairs': np.zeros_like(lags),
+            'n_tracks_per_lag': np.zeros_like(lags),
             'n_tracks': 0
         }
 
-    # Compute ensemble average
     all_msds = np.array(all_msds)
-    mean_msd = np.mean(all_msds, axis=0)
-    std_msd = np.std(all_msds, axis=0)
+    present = np.isfinite(all_msds)
+    n_per_lag = present.sum(axis=0)
+    filled = np.where(present, all_msds, 0.0)
+    with np.errstate(invalid='ignore', divide='ignore'):
+        mean_msd = np.where(n_per_lag > 0, filled.sum(axis=0) / n_per_lag, np.nan)
+        dev2 = np.where(present, (all_msds - mean_msd) ** 2, 0.0)
+        std_msd = np.where(n_per_lag > 0, np.sqrt(dev2.sum(axis=0) / np.maximum(n_per_lag, 1)), np.nan)
 
     return {
         'lags': lags,
@@ -86,6 +79,8 @@ def calculate_msd(tracks: List[Track],
         'mean_msd': mean_msd,
         'std_msd': std_msd,
         'individual_msds': all_msds,
+        'n_pairs': np.sum(all_pairs, axis=0),
+        'n_tracks_per_lag': n_per_lag,
         'n_tracks': len(all_msds)
     }
 
