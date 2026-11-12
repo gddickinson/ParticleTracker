@@ -149,7 +149,7 @@ class TestConfinement:
             y = 50.0 + rng.randn() * 0.5
             track.add_detection(Detection(x=max(0, x), y=max(0, y), t=t))
 
-        result = detect_confinement(track, window_size=10)
+        result = detect_confinement(track, window_size=10, method='rg_legacy')
         assert result['confinement_probability'] > 0.5
 
     def test_short_track_not_confined(self):

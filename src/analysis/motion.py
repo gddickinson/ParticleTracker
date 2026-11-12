@@ -13,9 +13,11 @@ from scipy.optimize import curve_fit
 try:
     from ..core.data_structures import Track
     from .msd import frame_msd
+    from .confinement import confinement_level, CONFINEMENT_LEVEL_THRESHOLD
 except ImportError:
     from core.data_structures import Track
     from msd import frame_msd
+    from confinement import confinement_level, CONFINEMENT_LEVEL_THRESHOLD
 
 
 def calculate_msd(tracks: List[Track],
@@ -304,46 +306,69 @@ def calculate_directionality(track: Track) -> Dict:
 
 
 def detect_confinement(track: Track,
-                       window_size: int = 10) -> Dict:
+                       window_size: int = 10,
+                       method: str = 'saxton',
+                       level_threshold: float = CONFINEMENT_LEVEL_THRESHOLD) -> Dict:
     """
-    Detect confined motion in trajectory.
+    Detect confined motion in a trajectory.
 
-    Uses sliding window to detect confined regions.
+    method='saxton' (default): Saxton (1993) / Simson et al. (1995)
+    confinement level L of the whole track (see analysis/confinement.py);
+    confined when L > level_threshold (3.16). Dimensionless: it does not
+    depend on the particle's speed, the pixel size or, for free diffusion,
+    the track length. Tracks shorter than window_size are not tested.
+
+    method='rg_legacy': the original rule, kept for comparison: confined when
+    the radius of gyration of more than 70 % of the window_size-point windows
+    is below 2 pixels (calls slow free diffusion confined).
 
     Args:
         track: Track object
-        window_size: Window size for detection
+        window_size: Minimum track length (saxton) / window size (rg_legacy)
+        method: 'saxton' or 'rg_legacy'
+        level_threshold: Confinement level threshold (saxton)
 
     Returns:
-        Dictionary with confinement metrics
+        Dictionary with is_confined, method and confinement_level (saxton) or
+        confinement_probability (rg_legacy)
     """
+    if method == 'rg_legacy':
+        return _detect_confinement_rg_legacy(track, window_size)
+    if method != 'saxton':
+        raise ValueError(f"Unknown confinement method: {method}")
+
     if track.length < window_size:
-        return {'is_confined': False, 'confinement_probability': 0.0}
+        return {'is_confined': False, 'confinement_level': float('nan'), 'method': 'saxton'}
+
+    level = confinement_level(track.times, track.positions)
+    return {
+        'is_confined': bool(np.isfinite(level) and level > level_threshold),
+        'confinement_level': level,
+        'method': 'saxton'
+    }
+
+
+def _detect_confinement_rg_legacy(track: Track, window_size: int = 10) -> Dict:
+    """Original rule: Rg < 2 px in more than 70 % of sliding windows."""
+    if track.length < window_size:
+        return {'is_confined': False, 'confinement_probability': 0.0, 'method': 'rg_legacy'}
 
     positions = track.positions
-
-    # Calculate local mean positions in sliding windows
     is_confined = []
 
     for i in range(len(positions) - window_size + 1):
         window = positions[i:i+window_size]
-
-        # Calculate radius of gyration
         center = np.mean(window, axis=0)
         distances = np.linalg.norm(window - center, axis=1)
         rg = np.sqrt(np.mean(distances**2))
-
-        # Expected Rg for Brownian motion
-        # For confined motion, Rg should plateau
-
-        # Simple criterion: check if radius is small
         is_confined.append(rg < 2.0)  # Threshold in pixels
 
     confinement_prob = np.mean(is_confined) if is_confined else 0.0
 
     return {
-        'is_confined': confinement_prob > 0.7,
-        'confinement_probability': confinement_prob
+        'is_confined': bool(confinement_prob > 0.7),
+        'confinement_probability': confinement_prob,
+        'method': 'rg_legacy'
     }
 
 
