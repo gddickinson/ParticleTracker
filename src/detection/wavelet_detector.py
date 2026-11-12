@@ -138,25 +138,29 @@ class WaveletDetector(BaseDetector):
         """
         Apply Mexican hat wavelet transform.
 
-        The Mexican hat wavelet is the second derivative of a Gaussian.
-        For particle detection, this enhances blob-like structures.
+        The 2D Mexican hat is the negative Laplacian of a Gaussian. It enhances
+        bright blob-like structures of width ~sigma and gives zero response to
+        a flat background.
         """
-        # Create Mexican hat kernel
+        kernel = self._mexican_hat_kernel(sigma)
+        return ndimage.convolve(image, kernel, mode='reflect')
+
+    @staticmethod
+    def _mexican_hat_kernel(sigma: float) -> np.ndarray:
+        """
+        Odd-sized, symmetric 2D Mexican hat kernel
+        (1 - r^2 / (2 sigma^2)) exp(-r^2 / (2 sigma^2)), made exactly zero-sum
+        (truncation) and scaled to unit absolute sum.
+        """
         size = int(6 * sigma + 1)
         if size % 2 == 0:
             size += 1
-
-        y, x = np.ogrid[-size//2:size//2+1, -size//2:size//2+1]
-        r2 = x*x + y*y
-
-        # Mexican hat formula: (1 - r²/σ²) * exp(-r²/(2σ²))
-        kernel = (1 - r2 / (sigma**2)) * np.exp(-r2 / (2 * sigma**2))
-        kernel = kernel / np.abs(kernel).sum()  # Normalize
-
-        # Convolve
-        result = ndimage.convolve(image, kernel, mode='reflect')
-
-        return result
+        half = size // 2
+        y, x = np.ogrid[-half:half + 1, -half:half + 1]
+        r2 = x * x + y * y
+        kernel = (1 - r2 / (2 * sigma**2)) * np.exp(-r2 / (2 * sigma**2))
+        kernel = kernel - kernel.mean()
+        return kernel / np.abs(kernel).sum()
 
     def _morlet_transform(self, image: np.ndarray, sigma: float) -> np.ndarray:
         """Apply Morlet wavelet transform."""

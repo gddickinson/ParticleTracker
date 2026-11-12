@@ -79,3 +79,24 @@ class TestWaveletDetector:
         estimated = detector._estimate_noise(noise)
         # Should be roughly 10.0
         assert 5.0 < estimated < 20.0
+
+
+def test_mexican_hat_finds_bright_spot_and_kernel_is_zero_sum():
+    """Regression: the kernel (1 - r^2/s^2) exp(-r^2/2s^2) summed to a negative number, so bright spots gave a
+    negative response and the detector reported noise/edges instead (the spot at (30, 20) was missed)."""
+    from scipy.ndimage import gaussian_filter
+    img = np.zeros((48, 48), np.float32)
+    img[20, 30] = 1000.0
+    img = gaussian_filter(img, 1.5) + np.random.RandomState(0).randn(48, 48).astype(np.float32)
+    det = WaveletDetector({})
+    w = det._apply_wavelet_transform(img)
+    assert np.unravel_index(np.argmax(w), w.shape) == (20, 30)
+    found = det.detect(img)
+    assert any(abs(d.x - 30) < 0.2 and abs(d.y - 20) < 0.2 for d in found)
+
+
+def test_mexican_hat_kernel_symmetric():
+    """The kernel must be symmetric about its centre so the response peak is not shifted."""
+    det = WaveletDetector({})
+    k = det._mexican_hat_kernel(1.5)
+    assert k.shape[0] % 2 == 1 and np.allclose(k, k[::-1, ::-1]) and abs(k.sum()) < 1e-6
