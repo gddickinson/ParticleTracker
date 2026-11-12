@@ -14,11 +14,11 @@ import numpy as np
 import sys
 from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent / 'src'))
+# Make the repository root importable (the package is 'src')
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from particletracker import ParticleTracker
-from particletracker.core.data_structures import create_synthetic_data
+from src import ParticleTracker
+from src.core.data_structures import create_synthetic_data
 
 
 def main():
@@ -231,7 +231,8 @@ def main():
         print(f"      Duration: {example_track.duration} frames")
         
         velocity = calculate_velocity(example_track, time_interval=image_stack.time_interval)
-        print(f"      Mean velocity: {velocity['mean_velocity']:.3f} μm/s")
+        # calculate_velocity works in pixels: scale by the pixel size for um/s
+        print(f"      Mean velocity: {velocity['mean_velocity'] * image_stack.pixel_size:.3f} μm/s")
         
         directionality = calculate_directionality(example_track)
         print(f"      Directionality: {directionality['directionality_ratio']:.3f}")
