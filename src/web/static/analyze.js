@@ -5,7 +5,7 @@ import { cls, color, fmt, getMeta, getRun, runSettings, where } from './data.js'
 import { bars, lines } from './charts.js';
 import { calculateMsd } from './analysis_engine.js';
 
-const CLASSES = ['brownian', 'directed', 'superdiffusive', 'subdiffusive', 'confined', 'insufficient_data'];
+const ALL_CLASSES = ['brownian', 'directed', 'confined', 'subdiffusive', 'superdiffusive', 'insufficient_data'];
 const TYPES = ['brownian', 'directed', 'confined'];
 const MODEL_COL = { brownian: color('brownian'), anomalous: color('subdiffusive'), directed: color('directed'), confined: color('confined') };
 
@@ -27,6 +27,8 @@ route('analyse', async () => {
   if (F.directed?.success) series.push({ points: curve(t => 4 * F.directed.diffusion_coefficient * t + (F.directed.velocity * t) ** 2), color: color('directed'), label: 'directed' });
   if (F.confined?.success) series.push({ points: curve(t => F.confined.confinement_area * (1 - Math.exp(-4 * F.confined.diffusion_coefficient * t / F.confined.confinement_area))), color: color('confined'), label: 'confined' });
 
+  // sub/superdiffusive only appear with alpha_classes='anomalous': show their columns only when used
+  const CLASSES = ALL_CLASSES.filter(c => !['subdiffusive', 'superdiffusive'].includes(c) || r.class_counts[c]);
   const conf = TYPES.map(t => CLASSES.map(c => r.per_track.filter(p => truthType(p.track_id) === t && p.motion_class === c).length));
   const noPart = CLASSES.map(c => r.per_track.filter(p => truthType(p.track_id) === null && p.motion_class === c).length);
   const long = r.per_track.filter(p => p.length >= 10);
