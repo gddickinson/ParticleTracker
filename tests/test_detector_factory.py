@@ -40,3 +40,16 @@ def test_documented_methods_create(method):
 def test_deep_method_says_not_implemented():
     with pytest.raises(NotImplementedError):
         create_detector({"method": "deep"})
+
+
+def test_gaussian_fit_detector_stays_in_fit_window():
+    """Regression: a fit that wandered off (noise peaks) gave a negative position, and Detection() raised
+    ValueError, crashing the whole frame (seed 4), or a position far outside the image (seeds 13, 14, 28)."""
+    import warnings
+    det = create_detector({"method": "gaussian"})
+    for seed in (4, 13, 14, 28):
+        im = (100 + 10 * np.random.RandomState(seed).randn(48, 48)).astype(np.float32)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            out = det.detect(im)
+        assert all(0 <= d.x <= 47 and 0 <= d.y <= 47 for d in out)

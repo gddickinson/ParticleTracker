@@ -309,6 +309,11 @@ class GaussianFitDetector(BaseDetector):
 
             amplitude, x0_fit, y0_fit, sigma_x, sigma_y, offset = popt
 
+            # A fit whose centre left the fitting window has not found this
+            # peak (it would give positions far away or outside the image)
+            if not (0 <= x0_fit <= region.shape[1] - 1 and 0 <= y0_fit <= region.shape[0] - 1):
+                return None
+
             # Convert back to image coordinates
             x0_img = x_min + x0_fit
             y0_img = y_min + y0_fit
