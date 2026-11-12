@@ -409,6 +409,8 @@ def main():
         print("  pip install PyQt5 pyqtgraph")
         sys.exit(1)
 
+    import logging
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s %(levelname)s: %(message)s')
     app = QApplication(sys.argv)
     window = ParticleTrackerGUI()
     window.show()

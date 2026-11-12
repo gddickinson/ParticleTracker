@@ -35,8 +35,7 @@ def _sibling(name: str):
         return importlib.import_module(name)
 
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Module logger only: the program that imports this configures logging (the GUI's main() and the example do).
 logger = logging.getLogger(__name__)
 
 

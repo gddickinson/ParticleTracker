@@ -3,7 +3,6 @@
 Everything here calls ParticleTracker / src.analysis; nothing is re-implemented. static/analysis_engine.js mirrors
 per_track() and ensemble() for the static site (node-tested against this module's output).
 """
-import logging
 import warnings
 
 import numpy as np
@@ -14,8 +13,6 @@ from ..analysis.msd_classifier import MSD_CLASSIFIER_DEFAULTS, classify_features
 from ..core.data_structures import ImageStack
 from ..core.pipeline import ParticleTracker
 from .jsonify import jsonable
-
-logging.getLogger("src.core.pipeline").setLevel(logging.WARNING)
 
 MODELS = ("brownian", "anomalous", "directed", "confined")
 

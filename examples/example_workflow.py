@@ -22,6 +22,8 @@ from src.core.data_structures import create_synthetic_data
 
 
 def main():
+    import logging
+    logging.basicConfig(level=logging.INFO, format='%(name)s %(levelname)s: %(message)s')
     print("=" * 80)
     print("ParticleTracker Example Workflow")
     print("=" * 80)

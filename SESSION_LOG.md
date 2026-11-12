@@ -51,3 +51,6 @@ are not used by the site.
    brownian 58 -> 96 %, directed 0 -> 79 %, confined 12 -> 92 %; end to end on 11 demo-like movies 41/0/16 % ->
    88/65/84 %. `classify_motion_type` now uses the same classifier. JS port + fixture (72 tracks x 3 option sets).
    Changes classification results (approved: it fixes the problem).
+2. **Logging:** `pipeline.py` no longer calls `logging.basicConfig(INFO)` at import (it configured the root logger of
+   every program that imported the package); module logger only. The GUI's `main()` and the example workflow configure
+   INFO logging; the web layer's workaround that silenced the pipeline logger is gone. Test: `tests/test_logging_config.py`.
