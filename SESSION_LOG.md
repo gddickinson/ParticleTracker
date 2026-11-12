@@ -54,3 +54,10 @@ are not used by the site.
 2. **Logging:** `pipeline.py` no longer calls `logging.basicConfig(INFO)` at import (it configured the root logger of
    every program that imported the package); module logger only. The GUI's `main()` and the example workflow configure
    INFO logging; the web layer's workaround that silenced the pipeline logger is gone. Test: `tests/test_logging_config.py`.
+3. **NearestNeighborTracker gap closing implemented** (it stored `gap_closing` and never used it). Same convention as
+   LAPTracker: a link may span a frame difference up to `gap_closing`, within `max_gap_displacement` (default
+   `max_displacement`) × sqrt(frame difference); missing frames recorded in `gap_frames`. Also fixed in the same loop:
+   links were made in track order (a track whose nearest detection was taken ended even with another in range; now
+   closest pairs first) and frames with no detections were skipped, silently linking across them. Default
+   `gap_closing=0` keeps consecutive-frame linking; through the pipeline the config default 3 now applies to 'nearest'
+   too. Test: `tests/test_nearest_tracker.py`.

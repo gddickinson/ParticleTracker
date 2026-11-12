@@ -152,15 +152,17 @@ Cost includes:
 
 #### 2. Nearest Neighbor Tracker
 
-Simple frame-to-frame linking:
+Simple greedy linking with optional gap closing:
 
 ```
-Algorithm:
-1. For each track ending in frame t:
-   - Find nearest detection in frame t+1
-   - If distance < max_displacement: link
-   - Else: end track
-2. Start new tracks for unlinked detections
+Algorithm, for each frame t:
+1. Candidate tracks: those whose last detection is k <= max(1, gap_closing)
+   frames back (k = frame difference; gap_closing 3 bridges 2 missing frames)
+2. Candidate pairs: distance < max_displacement (k = 1) or
+   max_gap_displacement * sqrt(k) (gap links; default max_displacement)
+3. Link pairs in order of increasing cost (distance + 0.5 * (k - 1)),
+   each track and detection once; missing frames go to Track.gap_frames
+4. Start new tracks for unlinked detections
 ```
 
 **Advantages:**

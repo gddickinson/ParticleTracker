@@ -21,12 +21,25 @@ class NearestNeighborTracker(BaseTracker):
     """
     Nearest neighbor linking tracker.
 
-    Simple frame-to-frame linking based on nearest neighbor within
-    a search radius. Fast but less robust than LAP for dense fields.
+    Frame by frame, every (track, detection) pair within reach is linked in
+    order of increasing cost, each track and detection at most once (greedy
+    nearest-neighbour matching; LAPTracker solves the same assignment
+    optimally). Fast but less robust than LAP for dense fields.
+
+    Gap closing, same convention as LAPTracker: a track whose last detection
+    is k frames back (k = frame difference, 1 for consecutive frames) can be
+    continued when k <= max(1, gap_closing) and the distance is below
+    max_gap_displacement * sqrt(k). The cost is distance + 0.5 * (k - 1), so
+    a consecutive-frame link wins over a gap link at the same distance.
+    Missing frames are recorded in Track.gap_frames.
 
     Config parameters:
-        max_displacement: Maximum linking distance (default: 5.0)
-        gap_closing: Frames to interpolate gaps (default: 0)
+        max_displacement: Maximum linking distance between consecutive frames
+            (default: 5.0)
+        gap_closing: Largest frame difference a link may span (default: 0,
+            consecutive frames only; 3 bridges up to 2 missing frames)
+        max_gap_displacement: Distance scale for gap links (default:
+            max_displacement)
     """
 
     def __init__(self, config: Dict):
@@ -34,7 +47,13 @@ class NearestNeighborTracker(BaseTracker):
         super().__init__(config)
 
         self.max_displacement = config.get('max_displacement', 5.0)
-        self.gap_closing = config.get('gap_closing', 0)
+        self.gap_closing = int(config.get('gap_closing', 0) or 0)
+        self.max_gap_displacement = config.get('max_gap_displacement', self.max_displacement)
+
+    def _reach(self, frame_diff: int) -> float:
+        if frame_diff == 1:
+            return self.max_displacement
+        return self.max_gap_displacement * np.sqrt(frame_diff)
 
     def track(self, detections: List[Detection]) -> TrackingResult:
         """
@@ -49,94 +68,49 @@ class NearestNeighborTracker(BaseTracker):
         if not detections:
             return TrackingResult()
 
-        # Organize by frame
         by_frame = self._organize_by_frame(detections)
-        frames = sorted(by_frame.keys())
+        max_diff = max(1, self.gap_closing)
+        tracks: List[Track] = []
+        open_tracks: List[Track] = []     # tracks that may still be continued
 
-        # Initialize tracks
-        tracks = []
-        track_id = 0
-
-        # Start tracks from first frame
-        active_tracks = {}  # Maps track_id to Track object
-
-        for detection in by_frame[frames[0]]:
-            track = Track(track_id=track_id)
-            track.add_detection(detection)
-            active_tracks[track_id] = track
-            tracks.append(track)
-            track_id += 1
-
-        # Process subsequent frames
-        for i in range(1, len(frames)):
-            frame = frames[i]
-            current_detections = by_frame[frame]
-
-            if not current_detections:
-                continue
-
-            # Get last positions of active tracks
-            track_ids = list(active_tracks.keys())
-            if not track_ids:
-                # No active tracks, start new ones
-                for detection in current_detections:
-                    track = Track(track_id=track_id)
-                    track.add_detection(detection)
-                    active_tracks[track_id] = track
-                    tracks.append(track)
-                    track_id += 1
-                continue
-
-            last_positions = np.array([
-                active_tracks[tid].detections[-1].position
-                for tid in track_ids
-            ])
-
-            current_positions = np.array([
-                det.position for det in current_detections
-            ])
-
-            # Calculate distance matrix
-            distances = cdist(last_positions, current_positions)
-
-            # Find nearest neighbors
-            assigned_tracks = set()
+        for frame in sorted(by_frame.keys()):
+            current = by_frame[frame]
+            open_tracks = [t for t in open_tracks if frame - t.detections[-1].t <= max_diff]
             assigned_dets = set()
+            if open_tracks and current:
+                last = np.array([t.detections[-1].position for t in open_tracks])
+                diffs = np.array([frame - t.detections[-1].t for t in open_tracks])
+                dist = cdist(last, np.array([d.position for d in current]))
+                reach = np.array([self._reach(int(k)) for k in diffs])
+                cost = dist + 0.5 * (diffs - 1)[:, None]
+                rows, cols = np.nonzero(dist < reach[:, None])
+                order = np.lexsort((cols, rows, cost[rows, cols]))
+                linked = set()
+                for k in order:
+                    r, c = int(rows[k]), int(cols[k])
+                    if r in linked or c in assigned_dets:
+                        continue
+                    trk = open_tracks[r]
+                    for gap in range(trk.detections[-1].t + 1, frame):
+                        trk.add_gap(gap)
+                    trk.add_detection(current[c])
+                    linked.add(r)
+                    assigned_dets.add(c)
+            for c, det in enumerate(current):
+                if c not in assigned_dets:
+                    trk = Track(track_id=len(tracks))
+                    trk.add_detection(det)
+                    tracks.append(trk)
+                    open_tracks.append(trk)
 
-            for track_idx in range(len(track_ids)):
-                # Find nearest detection
-                det_idx = np.argmin(distances[track_idx])
-                min_dist = distances[track_idx, det_idx]
-
-                # Check if within search radius and not already assigned
-                if min_dist < self.max_displacement and det_idx not in assigned_dets:
-                    # Link to track
-                    tid = track_ids[track_idx]
-                    active_tracks[tid].add_detection(current_detections[det_idx])
-                    assigned_tracks.add(track_idx)
-                    assigned_dets.add(det_idx)
-
-            # Remove tracks that weren't linked (end them)
-            for track_idx, tid in enumerate(track_ids):
-                if track_idx not in assigned_tracks:
-                    del active_tracks[tid]
-
-            # Start new tracks for unassigned detections
-            for det_idx, detection in enumerate(current_detections):
-                if det_idx not in assigned_dets:
-                    track = Track(track_id=track_id)
-                    track.add_detection(detection)
-                    active_tracks[track_id] = track
-                    tracks.append(track)
-                    track_id += 1
-
-        # Create result
         result = TrackingResult()
         result.tracks = tracks
         result.detections = detections
         result.metadata = {
             'method': 'nearest_neighbor',
-            'max_displacement': self.max_displacement
+            'max_displacement': self.max_displacement,
+            'gap_closing': self.gap_closing,
+            'max_gap_displacement': self.max_gap_displacement
         }
 
         return result

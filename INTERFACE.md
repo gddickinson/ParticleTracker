@@ -26,7 +26,7 @@ ParticleTracker/
     tracking/
       tracker_factory.py   -- BaseTracker (ABC), create_tracker() factory
       lap_tracker.py       -- LAPTracker (frame-to-frame LAP + gap closing), solve_augmented_lap
-      nearest_tracker.py   -- NearestNeighborTracker (simple baseline)
+      nearest_tracker.py   -- NearestNeighborTracker (greedy nearest-neighbour baseline + gap closing)
     analysis/
       msd.py               -- frame_msd (pairs exactly k frames apart; gaps allowed)
       confinement.py       -- Saxton/Simson confinement_level, initial_slope_D
