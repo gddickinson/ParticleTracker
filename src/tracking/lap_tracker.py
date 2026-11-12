@@ -188,26 +188,11 @@ class LAPTracker(BaseTracker):
                 if distance < search_radius:
                     cost_matrix[i, j] = distance
 
-        # Add dummy rows/columns for birth/death
-        # Augmented matrix allows tracks to end and detections to start new tracks
+        # Augmented matrix (Jaqaman et al. 2008): tracks may end (death) and
+        # detections may start new tracks (birth), each at cost max_cost / 2.
         max_cost = self.max_displacement * 2
-
-        augmented = np.full((n_tracks + n_dets, n_tracks + n_dets), max_cost)
-        augmented[:n_tracks, :n_dets] = cost_matrix
-
-        # Diagonal blocks for birth/death
-        augmented[n_tracks:, :n_dets] = np.eye(n_dets) * max_cost * 0.5
-        augmented[:n_tracks, n_dets:] = np.eye(n_tracks) * max_cost * 0.5
-
-        # Solve using Hungarian algorithm
-        row_ind, col_ind = linear_sum_assignment(augmented)
-
-        # Extract real assignments (not dummy)
-        assignments = []
-        for r, c in zip(row_ind, col_ind):
-            if r < n_tracks and c < n_dets:
-                if augmented[r, c] < max_cost:
-                    assignments.append((r, c))
+        assignments = solve_augmented_lap(cost_matrix, max_cost * 0.5, max_cost * 0.5)
+        assignments = [(r, c) for r, c in assignments if cost_matrix[r, c] < max_cost]
 
         return assignments
 
@@ -276,62 +261,65 @@ class LAPTracker(BaseTracker):
                         gap_cost_matrix[i, j] = distance + gap_frames * 0.5
 
         # Solve gap closing LAP
-        if np.any(np.isfinite(gap_cost_matrix)):
-            # Add dummy variables for segments that don't link
-            max_gap_cost = self.max_gap_displacement * 2
-
-            augmented = np.full((n_ends + n_starts, n_ends + n_starts), max_gap_cost)
-            augmented[:n_ends, :n_starts] = gap_cost_matrix
-
-            # Diagonal blocks
-            augmented[n_ends:, :n_starts] = np.eye(n_starts) * max_gap_cost * 0.5
-            augmented[:n_ends, n_starts:] = np.eye(n_ends) * max_gap_cost * 0.5
-
-            row_ind, col_ind = linear_sum_assignment(augmented)
-
-            # Apply gap closing
-            merged_tracks = {}  # Maps segment index to final track
-            next_track_id = max(t.track_id for t in track_segments) + 1
-
-            for r, c in zip(row_ind, col_ind):
-                if r < n_ends and c < n_starts:
-                    if augmented[r, c] < max_gap_cost:
-                        end_idx = segment_ends[r][0]
-                        start_idx = segment_starts[c][0]
-
-                        # Merge these segments
-                        if end_idx not in merged_tracks:
-                            merged_tracks[end_idx] = track_segments[end_idx]
-
-                        # Add gap frames
-                        gap_frames_list = list(range(
-                            track_segments[end_idx].end_frame + 1,
-                            track_segments[start_idx].start_frame
-                        ))
-                        for gap_frame in gap_frames_list:
-                            merged_tracks[end_idx].add_gap(gap_frame)
-
-                        # Add detections from second segment
-                        for det in track_segments[start_idx].detections:
-                            merged_tracks[end_idx].add_detection(det)
-
-                        # Mark start segment as merged
-                        merged_tracks[start_idx] = merged_tracks[end_idx]
-
-            # Collect final tracks (keeping only unique tracks)
-            final_tracks = []
-            seen_ids = set()
-
-            for i, track in enumerate(track_segments):
-                if i in merged_tracks:
-                    final_track = merged_tracks[i]
-                    if id(final_track) not in seen_ids:
-                        seen_ids.add(id(final_track))
-                        final_tracks.append(final_track)
-                else:
-                    # Unmerged segment
-                    final_tracks.append(track)
-
-            return final_tracks
-        else:
+        if not np.any(np.isfinite(gap_cost_matrix)):
             return track_segments
+
+        max_gap_cost = self.max_gap_displacement * 2
+        links = solve_augmented_lap(gap_cost_matrix, max_gap_cost * 0.5, max_gap_cost * 0.5)
+
+        # Segment index -> index of the segment that continues it
+        next_of = {}
+        for r, c in links:
+            if gap_cost_matrix[r, c] < max_gap_cost:
+                next_of[segment_ends[r][0]] = segment_starts[c][0]
+        continued = set(next_of.values())
+
+        # Walk each chain from its first segment, so chains of any length and
+        # any processing order give one track with every detection used once.
+        final_tracks = []
+        for i, track in enumerate(track_segments):
+            if i in continued:
+                continue
+            j = i
+            while j in next_of:
+                nxt = track_segments[next_of[j]]
+                for gap_frame in range(track_segments[j].end_frame + 1, nxt.start_frame):
+                    track.add_gap(gap_frame)
+                for gap_frame in nxt.gap_frames:
+                    track.add_gap(gap_frame)
+                for det in nxt.detections:
+                    track.add_detection(det)
+                j = next_of[j]
+            final_tracks.append(track)
+
+        return final_tracks
+
+
+def solve_augmented_lap(cost: np.ndarray, death_cost: float,
+                        birth_cost: float) -> List[Tuple[int, int]]:
+    """
+    Solve a linking LAP with the U-track augmented cost matrix.
+
+    cost[i, j] is the cost of linking row object i to column object j
+    (np.inf = forbidden). Row i may instead be left unlinked at death_cost and
+    column j at birth_cost. The off-diagonal entries of the birth and death
+    blocks are forbidden (a dummy may only stand in for its own object), and
+    the lower-right block is 0, so the total cost is the sum of the chosen
+    links plus the birth/death costs of everything left unlinked.
+
+    Returns:
+        List of (row, column) pairs that are real links.
+    """
+    n_rows, n_cols = cost.shape
+    if n_rows == 0 or n_cols == 0:
+        return []
+    big = 1e12  # stands in for "forbidden"; linear_sum_assignment needs a feasible finite path
+    finite = np.where(np.isfinite(cost), cost, big)
+    death = np.full((n_rows, n_rows), big)
+    np.fill_diagonal(death, death_cost)
+    birth = np.full((n_cols, n_cols), big)
+    np.fill_diagonal(birth, birth_cost)
+    augmented = np.block([[finite, death], [birth, np.zeros((n_cols, n_rows))]])
+    rows, cols = linear_sum_assignment(augmented)
+    return [(int(r), int(c)) for r, c in zip(rows, cols)
+            if r < n_rows and c < n_cols and np.isfinite(cost[r, c])]
