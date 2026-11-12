@@ -66,7 +66,7 @@ def test_tiff_scale_read_from_file(tmp_path):
 def test_tiff_without_scale_says_default(tmp_path):
     tifffile = pytest.importorskip("tifffile")
     f = tmp_path / "plain.tif"
-    tifffile.imwrite(f, np.zeros((3, 8, 8), np.uint16))
+    tifffile.imwrite(f, np.zeros((3, 8, 8), np.uint16), photometric="minisblack")
     s = load_image_stack(f)
     assert s.metadata["scale_source"] == {"pixel_size": "default", "time_interval": "default"}
 

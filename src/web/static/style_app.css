@@ -1,0 +1,58 @@
+/* ParticleTracker: accent palette and page styles (theme in style.css). */
+:root { --accent:#5ce1ff; --accent2:#ffd166; --accent3:#ff4fd8; --glow:rgba(92,225,255,.13); }
+button, .btn, .seg button.on { color:#021419; }
+main:focus, main:focus-visible { outline:none; }
+.two > *, .side > *, .row > * { min-width:0; }
+.mark { border-color:var(--accent); box-shadow:0 0 12px var(--accent), inset 0 0 0 4px var(--bg), inset 0 0 0 9px var(--accent2); }
+.hero .btn { margin-right:10px; margin-bottom:8px; }
+
+.badge { display:inline-block; font:11px var(--mono); padding:2px 8px; border-radius:3px; border:1px solid var(--line); color:var(--mute); white-space:nowrap; }
+.badge.js { color:var(--accent2); border-color:color-mix(in srgb, var(--accent2) 50%, transparent); }
+.badge.py { color:var(--accent); border-color:color-mix(in srgb, var(--accent) 50%, transparent); }
+
+/* movie viewer */
+.viewer { position:relative; width:100%; max-width:560px; aspect-ratio:1; background:#000; border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+.viewer canvas { position:absolute; inset:0; width:100%; height:100%; }
+.viewer canvas.img { image-rendering:pixelated; }
+.player { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:8px 0; }
+.player button { margin:0; }
+.player input[type=range] { flex:1; min-width:140px; }
+.checks { display:flex; gap:6px 16px; flex-wrap:wrap; margin:6px 0; }
+.checks label { display:inline-flex; gap:6px; align-items:center; color:var(--ink); font-size:14px; }
+
+/* motion classes (keep in step with COLORS in data.js) */
+.cls { display:inline-flex; align-items:center; gap:6px; font:12px var(--mono); white-space:nowrap; }
+.cls::before { content:""; width:9px; height:9px; border-radius:50%; background:var(--c, var(--mute)); flex:none; }
+.legend { display:flex; flex-wrap:wrap; gap:6px 16px; margin:8px 0; }
+
+/* tables and key-value lists */
+.tbl { width:100%; border-collapse:collapse; }
+.tbl td { font:12.5px var(--mono); white-space:nowrap; }
+.tbl tr.sel td { background:color-mix(in srgb, var(--accent) 12%, transparent); }
+.kv { display:grid; grid-template-columns:auto 1fr; gap:2px 14px; font-size:14px; margin:6px 0; }
+.kv dt { color:var(--mute); } .kv dd { margin:0; font:13px var(--mono); overflow-wrap:anywhere; }
+.ok { color:var(--good); } .no { color:var(--bad); }
+
+/* forms */
+.params fieldset { border:1px solid var(--line); border-radius:6px; padding:8px 14px 12px; margin:10px 0; min-width:0; }
+.params legend { font:12px var(--mono); color:var(--accent2); text-transform:uppercase; letter-spacing:.1em; padding:0 6px; }
+.params .grid2 { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:8px 14px; }
+.params label { display:block; font-size:13px; }
+.params input, .params select { width:100%; }
+.hint { font-size:12px; color:var(--mute); margin:4px 0 0; }
+
+/* charts */
+.chart { width:100%; height:auto; display:block; }
+.chart text { fill:var(--mute); font:11px var(--mono); }
+.chart .axis { stroke:var(--line); }
+.preview { width:100%; max-width:560px; image-rendering:pixelated; border:1px solid var(--line); border-radius:6px; display:block; }
+.player label.mono { display:flex; gap:8px; align-items:center; flex:1; min-width:180px; }
+.player label.mono input { flex:1; min-width:120px; }
+.scroll { overflow-x:auto; max-width:100%; }
+.scroll.tall { max-height:460px; overflow-y:auto; }
+.tbl.conf td { text-align:center; }
+.tbl.conf td.hit { color:var(--good); font-weight:600; }
+.tbl.conf td.miss { color:var(--accent2); }
+.tbl tr[data-id] { cursor:pointer; }
+.tbl tr[data-id]:focus-visible { outline:1px solid var(--accent); }
+.params input[type=checkbox] { width:auto; }

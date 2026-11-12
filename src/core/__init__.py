@@ -1,4 +1,5 @@
-"""Core module: data structures and pipeline orchestration."""
+"""Core module: data structures (data_structures.py), pipeline orchestration (pipeline.py) and the
+synthetic-movie simulator with ground truth (simulation.py)."""
 
 __all__ = [
     'ImageStack',

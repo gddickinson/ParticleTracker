@@ -1,0 +1,12 @@
+# Web interface (run_web.py, scripts/build_static.py, tests/test_web.py)
+fastapi==0.162.2
+httpx==0.28.1
+pytest==9.2.0
+uvicorn==0.54.0
+python-multipart==0.0.33
+# what the API imports from the package
+numpy==2.5.4
+scipy==1.18.1
+pandas==3.1.1
+scikit-image==0.26.0
+tifffile==2026.11.8
